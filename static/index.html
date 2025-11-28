@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Game Theory Arena</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0a0a0f;
+            --bg-surface: #12121a;
+            --bg-card: #1a1a25;
+            --neon-pink: #ff2d95;
+            --neon-cyan: #00f0ff;
+            --neon-purple: #b347ff;
+            --neon-gold: #ffd700;
+            --neon-green: #00ff88;
+            --text-primary: #ffffff;
+            --text-muted: #6a6a8a;
+            --glow-pink: 0 0 20px rgba(255, 45, 149, 0.5), 0 0 40px rgba(255, 45, 149, 0.3);
+            --glow-cyan: 0 0 20px rgba(0, 240, 255, 0.5), 0 0 40px rgba(0, 240, 255, 0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Scanline overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.1) 2px,
+                rgba(0, 0, 0, 0.1) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Ambient glow background */
+        .glow-bg {
+            position: fixed;
+            top: -200px;
+            left: -200px;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: var(--neon-pink);
+            filter: blur(150px);
+            opacity: 0.15;
+            pointer-events: none;
+            z-index: 0;
+            animation: pulse-glow 8s ease-in-out infinite;
+        }
+
+        .glow-bg.cyan {
+            top: auto;
+            bottom: -200px;
+            left: auto;
+            right: -200px;
+            background: var(--neon-cyan);
+            animation-delay: -4s;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.12; transform: scale(1); }
+            50% { opacity: 0.18; transform: scale(1.1); }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 80px;
+            animation: fade-in-up 0.8s ease-out;
+        }
+
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3rem;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            background: linear-gradient(90deg, var(--neon-pink), var(--neon-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(255, 45, 149, 0.5);
+            margin-bottom: 16px;
+        }
+
+        .tagline {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 0.3em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-top: 24px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.6;
+        }
+
+        /* Games Grid */
+        .section-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            animation: fade-in-up 0.8s ease-out 0.2s backwards;
+        }
+
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent);
+        }
+
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 32px;
+        }
+
+        .game-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 36px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            text-decoration: none;
+            display: block;
+            animation: fade-in-up 0.8s ease-out backwards;
+        }
+
+        .game-card:nth-child(1) { animation-delay: 0.3s; }
+        .game-card:nth-child(2) { animation-delay: 0.4s; }
+        .game-card:nth-child(3) { animation-delay: 0.5s; }
+        .game-card:nth-child(4) { animation-delay: 0.6s; }
+        .game-card:nth-child(5) { animation-delay: 0.7s; }
+        .game-card:nth-child(6) { animation-delay: 0.8s; }
+
+        .game-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255, 45, 149, 0.1) 0%, rgba(0, 240, 255, 0.1) 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .game-card:hover {
+            border-color: rgba(0, 240, 255, 0.3);
+            transform: translateY(-8px);
+            box-shadow: 0 20px 60px rgba(0, 240, 255, 0.15);
+        }
+
+        .game-card:hover::before {
+            opacity: 1;
+        }
+
+        .game-card.available:hover {
+            border-color: var(--neon-cyan);
+        }
+
+        .game-card.coming-soon {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        .game-card.coming-soon:hover {
+            transform: none;
+            box-shadow: none;
+            border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .game-icon {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .game-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .game-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .game-card.available .game-title {
+            background: linear-gradient(90deg, var(--neon-pink), var(--neon-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .game-description {
+            font-size: 1rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+            position: relative;
+            z-index: 1;
+        }
+
+        .game-badge {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            padding: 6px 12px;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+
+        .game-badge.ready {
+            background: rgba(0, 255, 136, 0.15);
+            color: #00ff88;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .game-badge.soon {
+            background: rgba(255, 215, 0, 0.15);
+            color: var(--neon-gold);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+        }
+
+        .play-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 24px;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--neon-pink) 0%, #ff6b35 100%);
+            border: none;
+            border-radius: 8px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: white;
+            text-transform: uppercase;
+            position: relative;
+            z-index: 1;
+            transition: all 0.3s;
+        }
+
+        .game-card:hover .play-button {
+            box-shadow: var(--glow-pink);
+        }
+
+        .play-arrow {
+            font-size: 1.2rem;
+        }
+
+        /* Features Section */
+        .features {
+            margin-top: 80px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+        }
+
+        .feature {
+            background: var(--bg-surface);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 28px;
+            text-align: center;
+            animation: fade-in-up 0.8s ease-out backwards;
+            transition: all 0.3s ease;
+        }
+
+        .feature:nth-child(1) { animation-delay: 0.9s; }
+        .feature:nth-child(2) { animation-delay: 1.0s; }
+        .feature:nth-child(3) { animation-delay: 1.1s; }
+        .feature:nth-child(4) { animation-delay: 1.2s; }
+
+        .feature:hover {
+            border-color: rgba(0, 240, 255, 0.2);
+            transform: translateY(-4px);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 16px;
+        }
+
+        .feature-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .feature-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--neon-cyan);
+            margin-bottom: 8px;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 40px 20px;
+            }
+
+            .logo {
+                font-size: 2rem;
+            }
+
+            .games-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="glow-bg cyan"></div>
+
+    <div class="container">
+        <header class="header">
+            <h1 class="logo">LLM GAME THEORY ARENA</h1>
+            <div class="tagline">Strategic AI Experiments</div>
+            <p class="subtitle">
+                Pit Large Language Models against each other in classic game theory scenarios.
+                Watch how different AI models develop strategies, coordinate, and compete.
+            </p>
+        </header>
+
+        <div class="section-title">Available Games</div>
+
+        <div class="games-grid">
+            <a href="/games/matrix_2x2" class="game-card available">
+                <span class="game-badge ready">Play Now</span>
+                <div class="game-icon">
+                    <!-- 2x2 Matrix Grid Icon -->
+                    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="4" y="4" width="24" height="24" rx="4" stroke="url(#matrix-grad)" stroke-width="2" fill="rgba(255,45,149,0.1)"/>
+                        <rect x="36" y="4" width="24" height="24" rx="4" stroke="url(#matrix-grad)" stroke-width="2" fill="rgba(0,240,255,0.1)"/>
+                        <rect x="4" y="36" width="24" height="24" rx="4" stroke="url(#matrix-grad)" stroke-width="2" fill="rgba(0,240,255,0.1)"/>
+                        <rect x="36" y="36" width="24" height="24" rx="4" stroke="url(#matrix-grad)" stroke-width="2" fill="rgba(255,45,149,0.1)"/>
+                        <circle cx="16" cy="16" r="4" fill="#ff2d95"/>
+                        <circle cx="48" cy="16" r="4" fill="#00f0ff"/>
+                        <circle cx="16" cy="48" r="4" fill="#00f0ff"/>
+                        <circle cx="48" cy="48" r="4" fill="#ff2d95"/>
+                        <defs>
+                            <linearGradient id="matrix-grad" x1="0" y1="0" x2="64" y2="64">
+                                <stop offset="0%" stop-color="#ff2d95"/>
+                                <stop offset="100%" stop-color="#00f0ff"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h2 class="game-title">2x2 Matrix Games</h2>
+                <p class="game-description">
+                    Classic strategic games including Battle of the Sexes, Prisoner's Dilemma,
+                    and 6 other game families. Watch LLMs reason through coordination and competition.
+                </p>
+                <div class="play-button">
+                    Launch Game <span class="play-arrow">→</span>
+                </div>
+            </a>
+
+            <div class="game-card coming-soon">
+                <span class="game-badge soon">Coming Soon</span>
+                <div class="game-icon">
+                    <!-- Auction Gavel Icon -->
+                    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M44 12L52 20L28 44L20 36L44 12Z" stroke="#ffd700" stroke-width="2" fill="rgba(255,215,0,0.15)"/>
+                        <path d="M48 8L56 16" stroke="#ffd700" stroke-width="3" stroke-linecap="round"/>
+                        <rect x="8" y="48" width="28" height="8" rx="2" stroke="#ffd700" stroke-width="2" fill="rgba(255,215,0,0.1)"/>
+                        <path d="M16 40L24 48" stroke="#ffd700" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="50" cy="14" r="3" fill="#ffd700" opacity="0.6"/>
+                    </svg>
+                </div>
+                <h2 class="game-title">Auctions</h2>
+                <p class="game-description">
+                    First-price, second-price, English, and Dutch auction formats.
+                    Explore bidding strategies and revenue equivalence.
+                </p>
+            </div>
+
+            <div class="game-card coming-soon">
+                <span class="game-badge soon">Coming Soon</span>
+                <div class="game-icon">
+                    <!-- Pricing Chart Icon -->
+                    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 56V12" stroke="#b347ff" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M8 56H56" stroke="#b347ff" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M16 44L28 28L40 36L56 16" stroke="url(#price-grad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="16" cy="44" r="4" fill="#ff2d95"/>
+                        <circle cx="28" cy="28" r="4" fill="#b347ff"/>
+                        <circle cx="40" cy="36" r="4" fill="#b347ff"/>
+                        <circle cx="56" cy="16" r="4" fill="#00f0ff"/>
+                        <path d="M44 8L56 8L56 20" stroke="#00f0ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+                        <defs>
+                            <linearGradient id="price-grad" x1="16" y1="44" x2="56" y2="16">
+                                <stop offset="0%" stop-color="#ff2d95"/>
+                                <stop offset="100%" stop-color="#00f0ff"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h2 class="game-title">Algorithmic Pricing</h2>
+                <p class="game-description">
+                    Bertrand competition and algorithmic collusion experiments.
+                    Study how AI agents set prices in competitive markets.
+                </p>
+            </div>
+
+            <div class="game-card coming-soon">
+                <span class="game-badge soon">Coming Soon</span>
+                <div class="game-icon">
+                    <!-- Handshake/Deal Icon -->
+                    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 28L20 20L32 28L44 20L56 28" stroke="url(#bargain-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M20 20V44" stroke="#ff2d95" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M44 20V44" stroke="#00f0ff" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="20" cy="48" r="6" stroke="#ff2d95" stroke-width="2" fill="rgba(255,45,149,0.2)"/>
+                        <circle cx="44" cy="48" r="6" stroke="#00f0ff" stroke-width="2" fill="rgba(0,240,255,0.2)"/>
+                        <path d="M26 48H38" stroke="#b347ff" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M30 44L34 52" stroke="#b347ff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                        <path d="M34 44L30 52" stroke="#b347ff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                        <defs>
+                            <linearGradient id="bargain-grad" x1="8" y1="24" x2="56" y2="24">
+                                <stop offset="0%" stop-color="#ff2d95"/>
+                                <stop offset="50%" stop-color="#b347ff"/>
+                                <stop offset="100%" stop-color="#00f0ff"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h2 class="game-title">Bargaining Games</h2>
+                <p class="game-description">
+                    Ultimatum game, Nash bargaining, and alternating offers.
+                    Investigate fairness and strategic negotiation.
+                </p>
+            </div>
+
+            <div class="game-card coming-soon">
+                <span class="game-badge soon">Coming Soon</span>
+                <div class="game-icon">
+                    <!-- Infinite Loop / Repeat Icon -->
+                    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 32C16 24 22 18 30 18H34C42 18 48 24 48 32C48 40 42 46 34 46H30C22 46 16 40 16 32Z" stroke="url(#repeat-grad)" stroke-width="2.5" fill="none"/>
+                        <path d="M8 32C8 20 18 10 32 10C46 10 56 20 56 32C56 44 46 54 32 54C18 54 8 44 8 32Z" stroke="url(#repeat-grad)" stroke-width="1.5" stroke-dasharray="4 4" fill="none" opacity="0.4"/>
+                        <polygon points="52,24 58,32 52,40" fill="#00f0ff"/>
+                        <polygon points="12,24 6,32 12,40" fill="#ff2d95"/>
+                        <circle cx="32" cy="32" r="6" fill="url(#repeat-grad)"/>
+                        <text x="32" y="36" text-anchor="middle" fill="#0a0a0f" font-family="Orbitron" font-size="8" font-weight="bold">∞</text>
+                        <defs>
+                            <linearGradient id="repeat-grad" x1="8" y1="32" x2="56" y2="32">
+                                <stop offset="0%" stop-color="#ff2d95"/>
+                                <stop offset="100%" stop-color="#00f0ff"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h2 class="game-title">Repeated Games</h2>
+                <p class="game-description">
+                    Iterated Prisoner's Dilemma and folk theorem experiments.
+                    Study cooperation emergence over multiple rounds.
+                </p>
+            </div>
+
+            <div class="game-card coming-soon">
+                <span class="game-badge soon">Coming Soon</span>
+                <div class="game-icon">
+                    <!-- Signal/Broadcast Icon -->
+                    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="32" cy="40" r="8" fill="url(#signal-grad)"/>
+                        <path d="M20 28C24 24 28 22 32 22C36 22 40 24 44 28" stroke="#b347ff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+                        <path d="M12 20C20 12 26 8 32 8C38 8 44 12 52 20" stroke="#b347ff" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.6"/>
+                        <path d="M4 12C16 0 24 -4 32 -4C40 -4 48 0 60 12" stroke="#b347ff" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.3"/>
+                        <line x1="32" y1="48" x2="32" y2="60" stroke="url(#signal-grad)" stroke-width="3" stroke-linecap="round"/>
+                        <circle cx="24" cy="56" r="3" fill="#ff2d95" opacity="0.7"/>
+                        <circle cx="40" cy="56" r="3" fill="#00f0ff" opacity="0.7"/>
+                        <defs>
+                            <linearGradient id="signal-grad" x1="32" y1="32" x2="32" y2="60">
+                                <stop offset="0%" stop-color="#b347ff"/>
+                                <stop offset="100%" stop-color="#ff2d95"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <h2 class="game-title">Signaling Games</h2>
+                <p class="game-description">
+                    Information transmission and cheap talk.
+                    Explore how AI agents communicate and deceive.
+                </p>
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">
+                    <!-- Neural Network / Brain Icon -->
+                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="24" cy="8" r="4" stroke="#00f0ff" stroke-width="1.5" fill="rgba(0,240,255,0.2)"/>
+                        <circle cx="8" cy="24" r="4" stroke="#ff2d95" stroke-width="1.5" fill="rgba(255,45,149,0.2)"/>
+                        <circle cx="40" cy="24" r="4" stroke="#ff2d95" stroke-width="1.5" fill="rgba(255,45,149,0.2)"/>
+                        <circle cx="16" cy="40" r="4" stroke="#00f0ff" stroke-width="1.5" fill="rgba(0,240,255,0.2)"/>
+                        <circle cx="32" cy="40" r="4" stroke="#00f0ff" stroke-width="1.5" fill="rgba(0,240,255,0.2)"/>
+                        <circle cx="24" cy="24" r="6" stroke="#b347ff" stroke-width="2" fill="rgba(179,71,255,0.3)"/>
+                        <line x1="24" y1="12" x2="24" y2="18" stroke="#b347ff" stroke-width="1.5"/>
+                        <line x1="12" y1="24" x2="18" y2="24" stroke="#b347ff" stroke-width="1.5"/>
+                        <line x1="30" y1="24" x2="36" y2="24" stroke="#b347ff" stroke-width="1.5"/>
+                        <line x1="20" y1="28" x2="16" y2="36" stroke="#b347ff" stroke-width="1.5"/>
+                        <line x1="28" y1="28" x2="32" y2="36" stroke="#b347ff" stroke-width="1.5"/>
+                    </svg>
+                </div>
+                <div class="feature-title">Extended Thinking</div>
+                <div class="feature-desc">Watch AI reasoning in real-time with full chain-of-thought visibility</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">
+                    <!-- Live Signal / Pulse Icon -->
+                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="24" cy="24" r="20" stroke="rgba(0,240,255,0.2)" stroke-width="1.5" fill="none"/>
+                        <circle cx="24" cy="24" r="14" stroke="rgba(0,240,255,0.4)" stroke-width="1.5" fill="none"/>
+                        <circle cx="24" cy="24" r="8" stroke="#00f0ff" stroke-width="2" fill="rgba(0,240,255,0.2)"/>
+                        <path d="M4 24H12L16 16L20 32L24 20L28 28L32 24H44" stroke="#ff2d95" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="24" cy="24" r="3" fill="#00f0ff">
+                            <animate attributeName="r" values="3;5;3" dur="1s" repeatCount="indefinite"/>
+                            <animate attributeName="opacity" values="1;0.5;1" dur="1s" repeatCount="indefinite"/>
+                        </circle>
+                    </svg>
+                </div>
+                <div class="feature-title">Real-time Updates</div>
+                <div class="feature-desc">WebSocket-powered live game state with instant feedback</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">
+                    <!-- Human vs Robot Icon -->
+                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="14" cy="16" r="8" stroke="#ff2d95" stroke-width="1.5" fill="rgba(255,45,149,0.15)"/>
+                        <path d="M6 40V36C6 32 10 28 14 28C18 28 22 32 22 36V40" stroke="#ff2d95" stroke-width="1.5" fill="none"/>
+                        <rect x="28" y="10" width="14" height="12" rx="2" stroke="#00f0ff" stroke-width="1.5" fill="rgba(0,240,255,0.15)"/>
+                        <circle cx="32" cy="16" r="2" fill="#00f0ff"/>
+                        <circle cx="38" cy="16" r="2" fill="#00f0ff"/>
+                        <rect x="30" y="24" width="10" height="14" rx="1" stroke="#00f0ff" stroke-width="1.5" fill="rgba(0,240,255,0.1)"/>
+                        <line x1="28" y1="28" x2="24" y2="32" stroke="#00f0ff" stroke-width="1.5" stroke-linecap="round"/>
+                        <line x1="42" y1="28" x2="46" y2="32" stroke="#00f0ff" stroke-width="1.5" stroke-linecap="round"/>
+                        <text x="24" y="46" text-anchor="middle" fill="#b347ff" font-family="Orbitron" font-size="10" font-weight="bold">VS</text>
+                    </svg>
+                </div>
+                <div class="feature-title">Human vs AI</div>
+                <div class="feature-desc">Play against LLMs yourself and test your strategy</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">
+                    <!-- Timeline / History Icon -->
+                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <line x1="8" y1="8" x2="8" y2="40" stroke="#b347ff" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="8" cy="12" r="4" stroke="#ff2d95" stroke-width="1.5" fill="rgba(255,45,149,0.3)"/>
+                        <circle cx="8" cy="24" r="4" stroke="#00f0ff" stroke-width="1.5" fill="rgba(0,240,255,0.3)"/>
+                        <circle cx="8" cy="36" r="4" stroke="#b347ff" stroke-width="1.5" fill="rgba(179,71,255,0.3)"/>
+                        <rect x="16" y="8" width="28" height="8" rx="2" stroke="#ff2d95" stroke-width="1.5" fill="rgba(255,45,149,0.1)"/>
+                        <rect x="16" y="20" width="20" height="8" rx="2" stroke="#00f0ff" stroke-width="1.5" fill="rgba(0,240,255,0.1)"/>
+                        <rect x="16" y="32" width="24" height="8" rx="2" stroke="#b347ff" stroke-width="1.5" fill="rgba(179,71,255,0.1)"/>
+                        <text x="20" y="14" fill="#ff2d95" font-size="5" font-weight="bold">R1</text>
+                        <text x="20" y="26" fill="#00f0ff" font-size="5" font-weight="bold">R2</text>
+                        <text x="20" y="38" fill="#b347ff" font-size="5" font-weight="bold">R3</text>
+                    </svg>
+                </div>
+                <div class="feature-title">Round History</div>
+                <div class="feature-desc">Review past rounds and analyze strategic patterns</div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

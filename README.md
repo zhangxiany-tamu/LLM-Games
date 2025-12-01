@@ -1,4 +1,10 @@
+<p align="center">
+  <img src="logo.png" alt="LLM Arena Logo" width="300">
+</p>
+
 # LLM Game Theory Arena
+
+**[Try it live](https://llm-games-253773978748.us-central1.run.app)**
 
 A platform for running game theory experiments with Large Language Models. Watch AI agents compete in strategic games, compare behavior across models, and play against them yourself.
 

@@ -1,0 +1,2195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sealed-Bid Auctions - LLM Arena v4</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-deep: #0a0a0f;
+            --bg-surface: #12121a;
+            --bg-card: #1a1a25;
+            --neon-gold: #ffd700;
+            --neon-amber: #ffaa00;
+            --neon-bronze: #cd7f32;
+            --neon-cyan: #00f0ff;
+            --neon-green: #00ff88;
+            --neon-red: #ff4444;
+            --neon-purple: #b347ff;
+            --text-primary: #ffffff;
+            --text-muted: #6a6a8a;
+            --glow-gold: 0 0 20px rgba(255, 215, 0, 0.5), 0 0 40px rgba(255, 215, 0, 0.3);
+            --glow-cyan: 0 0 20px rgba(0, 240, 255, 0.5), 0 0 40px rgba(0, 240, 255, 0.3);
+            --left-panel-width: 300px;
+            --right-panel-width: 400px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Scanline overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                51,
+                rgba(0, 0, 0, 0.1) 2px,
+                rgba(0, 0, 0, 0.1) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Ambient glow background */
+        body::after {
+            content: '';
+            position: fixed;
+            top: -200px;
+            right: -200px;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: var(--neon-gold);
+            filter: blur(150px);
+            opacity: 0.12;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: var(--left-panel-width) 1fr var(--right-panel-width);
+            grid-template-rows: auto 1fr;
+            height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            grid-column: 1 / -1;
+            background: linear-gradient(180deg, rgba(18, 18, 26, 0.95) 0%, rgba(10, 10, 15, 0.9) 100%);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 215, 0, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .back-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--neon-cyan);
+            text-decoration: none;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            padding: 8px 16px;
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .back-link:hover {
+            background: rgba(0, 240, 255, 0.1);
+            border-color: var(--neon-cyan);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            background: linear-gradient(90deg, var(--neon-gold), var(--neon-amber));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+            position: relative;
+        }
+        .logo::after {
+            content: 'LLM ARENA';
+            display: block;
+            font-size: 0.6rem;
+            font-weight: 500;
+            letter-spacing: 0.3em;
+            background: none;
+            -webkit-text-fill-color: var(--text-muted);
+            text-shadow: none;
+            margin-top: 4px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .vs-badge {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--neon-purple);
+            text-shadow: 0 0 10px rgba(179, 71, 255, 0.5);
+            padding: 0 16px;
+        }
+
+        select {
+            appearance: none;
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px 40px 12px 16px;
+            color: var(--text-primary);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            min-width: 160px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236a6a8a' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            transition: all 0.2s;
+        }
+        select:hover {
+            border-color: var(--neon-gold);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+        }
+        select:focus {
+            outline: none;
+            border-color: var(--neon-gold);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+        }
+
+        .btn-start {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, var(--neon-gold) 0%, var(--neon-amber) 100%);
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        .btn-start::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s;
+        }
+        .btn-start:hover::before {
+            left: 100%;
+        }
+        .btn-start:hover {
+            box-shadow: var(--glow-gold);
+            transform: translateY(-2px);
+        }
+        .btn-start:disabled {
+            background: var(--bg-card);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .btn-stop {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, var(--neon-red) 0%, #cc3333 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        .btn-stop:hover {
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.5), 0 0 40px rgba(255, 68, 68, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Header buttons */
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-icon {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1.1rem;
+        }
+        .btn-icon:hover {
+            border-color: var(--neon-gold);
+            color: var(--neon-gold);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+        }
+
+        /* Status Indicator */
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            transition: all 0.3s;
+        }
+        .status-indicator.connected .status-dot {
+            background: #00ff88;
+            box-shadow: 0 0 10px #00ff88;
+            animation: status-pulse 2s infinite;
+        }
+        .status-indicator.playing .status-dot {
+            background: var(--neon-gold);
+            box-shadow: 0 0 10px var(--neon-gold);
+            animation: status-pulse 0.5s infinite;
+        }
+        @keyframes status-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        /* Left Panel - Round History */
+        .left-panel {
+            background: var(--bg-surface);
+            border-right: 1px solid rgba(255, 215, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .panel-header {
+            padding: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .panel-header h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .round-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        .round-list::-webkit-scrollbar { width: 4px; }
+        .round-list::-webkit-scrollbar-track { background: transparent; }
+        .round-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
+
+        .round-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        .round-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.1) 0%, rgba(255, 215, 0, 0.1) 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .round-card:hover {
+            border-color: rgba(255, 215, 0, 0.3);
+            transform: translateX(4px);
+            box-shadow: -4px 0 20px rgba(255, 215, 0, 0.2);
+        }
+        .round-card:hover::before { opacity: 1; }
+        .round-card.active {
+            border-color: var(--neon-gold);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3), inset 0 0 20px rgba(255, 215, 0, 0.05);
+        }
+        .round-card.active::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--neon-gold);
+            box-shadow: 0 0 10px var(--neon-gold);
+        }
+
+        .round-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 1;
+            pointer-events: none;
+        }
+        .round-num {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--neon-gold);
+        }
+        .round-winner {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .round-winner.b1 { color: var(--neon-cyan); background: rgba(0, 240, 255, 0.1); }
+        .round-winner.b2 { color: var(--neon-gold); background: rgba(255, 215, 0, 0.1); }
+
+        .round-choices {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            z-index: 1;
+            pointer-events: none;
+            gap: 12px;
+        }
+        .round-choice {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 0.85rem;
+        }
+        .round-choice.b1 { color: var(--neon-cyan); }
+        .round-choice.b2 { color: var(--neon-gold); text-align: right; }
+        
+        .choice-main {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .choice-sub {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 24px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Stats Section - Bottom of left panel */
+        .stats-section {
+            padding: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            background: var(--bg-card);
+        }
+        .stats-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+        }
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        .stat-value {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .stat-value.gold { color: var(--neon-gold); }
+        .stat-value.green { color: var(--neon-green); }
+        .stat-value.cyan { color: var(--neon-cyan); }
+        .stat-value.red { color: var(--neon-red); }
+
+        /* Center - Arena */
+        .arena {
+            background: linear-gradient(180deg, var(--bg-deep) 0%, #0d0d14 100%);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .round-header {
+            text-align: center;
+            padding: 16px;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+        }
+
+        .round-number {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 900;
+            background: linear-gradient(90deg, var(--neon-gold), var(--neon-amber));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .round-status {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Bidder Cards */
+        .bidders-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .bidder-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            border: 2px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s;
+        }
+        .bidder-card.bidder-1 {
+            border-color: rgba(0, 240, 255, 0.3);
+        }
+        .bidder-card.bidder-2 {
+            border-color: rgba(255, 215, 0, 0.3);
+        }
+        .bidder-card.thinking {
+            animation: pulse-glow 1.5s ease-in-out infinite;
+        }
+        .bidder-card.won {
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+            border-color: var(--neon-green);
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.2); }
+            50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.4); }
+        }
+
+        .bidder-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .bidder-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+        }
+        .bidder-1 .bidder-name { color: var(--neon-cyan); }
+        .bidder-2 .bidder-name { color: var(--neon-gold); }
+
+        .bidder-model {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            background: var(--bg-deep);
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+
+        .value-display {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 170, 0, 0.05) 100%);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            text-align: center;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+        }
+
+        .value-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 4px;
+        }
+
+        .value-amount {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 900;
+            color: var(--neon-gold);
+        }
+
+        .bid-display {
+            text-align: center;
+            padding: 16px;
+            background: var(--bg-deep);
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .bid-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 4px;
+        }
+
+        .bid-amount {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #4a9eff;
+        }
+
+        .bid-comparison {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .bid-comparison.good { color: var(--neon-green); }
+        .bid-comparison.bad { color: var(--neon-red); }
+
+        .profit-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--bg-surface);
+            border-radius: 8px;
+        }
+
+        .profit-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .profit-amount {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        .profit-amount.positive { color: var(--neon-green); }
+        .profit-amount.zero { color: var(--text-muted); }
+        .profit-amount.negative { color: var(--neon-red); }
+
+        /* Auction Result Banner */
+        .auction-result {
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-surface) 100%);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 2px solid rgba(255, 215, 0, 0.3);
+            display: none;
+        }
+        .auction-result.visible {
+            display: block;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-winner {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .result-winner.b1 { color: var(--neon-cyan); }
+        .result-winner.b2 { color: var(--neon-gold); }
+
+        .result-details {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .efficiency-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        .efficiency-badge.efficient {
+            background: rgba(0, 255, 136, 0.2);
+            color: var(--neon-green);
+        }
+        .efficiency-badge.inefficient {
+            background: rgba(255, 68, 68, 0.2);
+            color: var(--neon-red);
+        }
+
+        /* Chart Container */
+        .chart-container {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            height: 250px;
+        }
+
+        /* History Table */
+        .history-section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            flex: 1;
+            min-height: 200px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .history-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 215, 0, 0.15);
+        }
+
+        .history-header::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: linear-gradient(180deg, var(--neon-gold), var(--neon-amber));
+            border-radius: 2px;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
+            flex-shrink: 0;
+        }
+
+        .history-header::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(255, 215, 0, 0.4), transparent);
+        }
+
+        .history-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--neon-gold);
+            text-shadow: 0 0 12px rgba(255, 215, 0, 0.5);
+            flex-shrink: 0;
+        }
+
+        .history-scroll {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .history-table th {
+            text-align: left;
+            padding: 10px 8px;
+            color: var(--text-muted);
+            font-weight: 500;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+        }
+
+        .history-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            color: var(--text-primary);
+        }
+
+        .history-table tr:hover {
+            background: rgba(255, 215, 0, 0.05);
+        }
+
+        .history-table .round-col {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .history-table .winner-cell {
+            font-weight: 600;
+        }
+        .history-table .winner-cell.b1 { color: var(--neon-cyan); }
+        .history-table .winner-cell.b2 { color: var(--neon-gold); }
+
+        /* Right Panel - Reasoning */
+        .right-panel {
+            background: var(--bg-surface);
+            border-left: 1px solid rgba(255, 215, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .reasoning-tabs {
+            display: flex;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .reasoning-tab {
+            flex: 1;
+            padding: 16px;
+            text-align: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            transition: all 0.3s;
+        }
+        .reasoning-tab:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .reasoning-tab.active {
+            color: var(--neon-gold);
+            border-bottom: 2px solid var(--neon-gold);
+        }
+
+        .reasoning-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .reasoning-header {
+            padding: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .reasoning-header h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        .round-badge {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 6px 12px;
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: var(--neon-gold);
+        }
+        
+        .reasoning-text {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            line-height: 1.8;
+            color: rgba(255, 255, 255, 0.8);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .reasoning-text.empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 60px 24px;
+        }
+
+        /* Modal Overlays */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+        .modal-overlay.show {
+            display: flex;
+            animation: fade-in 0.3s;
+        }
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Settings Modal Specific */
+        .settings-modal .modal-content {
+            max-width: 500px;
+            text-align: left;
+            padding: 30px 40px;
+        }
+        .settings-modal .modal-title {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .setting-group {
+            margin-bottom: 20px;
+        }
+        .setting-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            color: var(--neon-gold);
+            margin-bottom: 8px;
+            display: block;
+        }
+        .setting-input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-deep);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        .setting-input:focus {
+            outline: none;
+            border-color: var(--neon-gold);
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+        }
+        .setting-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 24px;
+        }
+        .btn-apply {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            padding: 12px 32px;
+            background: linear-gradient(135deg, var(--neon-gold) 0%, var(--neon-amber) 100%);
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-apply:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--glow-gold);
+        }
+
+        /* Help Modal - keep backward compat */
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 16px;
+            max-width: 700px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            position: relative;
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+        }
+
+        .modal-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--neon-gold);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.3s;
+            padding: 8px;
+            line-height: 1;
+        }
+        .modal-close:hover {
+            color: var(--neon-gold);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .help-section {
+            margin-bottom: 24px;
+        }
+        .help-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .help-section h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--neon-cyan);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .help-section p {
+            font-size: 0.95rem;
+            line-height: 1.7;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        .formula {
+            background: var(--bg-deep);
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: var(--neon-gold);
+            margin: 12px 0;
+            border-left: 3px solid var(--neon-gold);
+        }
+
+        .help-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+        .help-table th, .help-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .help-table th {
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        .help-table td {
+            font-size: 0.9rem;
+        }
+
+        /* Resize Handles */
+        .resize-handle {
+            position: absolute;
+            width: 6px;
+            cursor: col-resize;
+            background: transparent;
+            transition: background 0.2s;
+            z-index: 100;
+            top: 0;
+            bottom: 0;
+        }
+        .resize-handle:hover {
+            background: rgba(255, 215, 0, 0.3);
+        }
+        .resize-handle.left {
+            left: var(--left-panel-width);
+            transform: translateX(-50%);
+        }
+        .resize-handle.right {
+            right: var(--right-panel-width);
+            transform: translateX(50%);
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-deep);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 215, 0, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 215, 0, 0.5);
+        }
+
+        /* Gavel animation */
+        .gavel-icon {
+            display: inline-block;
+            animation: gavel-strike 0.5s ease-out;
+        }
+        @keyframes gavel-strike {
+            0% { transform: rotate(-30deg); }
+            50% { transform: rotate(10deg); }
+            100% { transform: rotate(0deg); }
+        }
+
+        /* Human bid controls */
+        .human-bid-panel {
+            display: none;
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 170, 0, 0.05) 100%);
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid var(--neon-gold);
+            margin-top: 16px;
+        }
+        .human-bid-panel.visible {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .human-bid-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--neon-gold);
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .bid-slider {
+            width: 100%;
+            margin: 16px 0;
+        }
+
+        .bid-slider input[type="range"] {
+            width: 100%;
+            height: 8px;
+            -webkit-appearance: none;
+            background: var(--bg-deep);
+            border-radius: 4px;
+            outline: none;
+        }
+        .bid-slider input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            background: var(--neon-gold);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: var(--glow-gold);
+        }
+
+        .bid-preview {
+            text-align: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--neon-gold);
+            margin-bottom: 16px;
+        }
+
+        .btn-submit-bid {
+            width: 100%;
+            padding: 14px;
+            background: var(--neon-gold);
+            border: none;
+            border-radius: 8px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #000;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-submit-bid:hover {
+            box-shadow: var(--glow-gold);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="layout" id="layout">
+        <header class="header">
+            <a href="/" class="back-link">
+                <span>&larr;</span> ARENA
+            </a>
+            <div class="logo">SEALED-BID AUCTIONS</div>
+            <div class="controls">
+                <select id="selectB1">
+                    <option value="human">Human</option>
+                    <option value="claude-4.5-sonnet">Claude 4.5 Sonnet</option>
+                    <option value="gpt-5">GPT-5</option>
+                    <option value="gpt-5.1">GPT-5.1</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-3-pro">Gemini 3 Pro</option>
+                </select>
+                <span class="vs-badge">VS</span>
+                <select id="selectB2">
+                    <option value="claude-4.5-sonnet" selected>Claude 4.5 Sonnet</option>
+                    <option value="gpt-5">GPT-5</option>
+                    <option value="gpt-5.1">GPT-5.1</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-3-pro">Gemini 3 Pro</option>
+                </select>
+                <button class="btn-start" id="btnStart">LAUNCH AUCTION</button>
+                <button class="btn-stop" id="btnStop" style="display: none;">STOP</button>
+                <div class="header-buttons">
+                    <button class="btn-icon" id="btnSettings" title="Settings">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                    </button>
+                    <button class="btn-icon" id="btnHelp" title="Help">?</button>
+                </div>
+                <div class="status-indicator" id="status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Offline</span>
+                </div>
+            </div>
+        </header>
+
+        <aside class="left-panel" id="leftPanel">
+            <div class="panel-header">
+                <h2>Round History</h2>
+            </div>
+            <div class="round-list" id="roundList">
+                <div class="empty-state">Launch an auction to see round history</div>
+            </div>
+            <div class="stats-section">
+                <div class="stats-title">Game Stats</div>
+                <div class="stat-row">
+                    <span class="stat-label">Round</span>
+                    <span class="stat-value" id="statRound">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">B1 Profit</span>
+                    <span class="stat-value cyan" id="statB1Total">$0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">B2 Profit</span>
+                    <span class="stat-value gold" id="statB2Total">$0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Efficiency</span>
+                    <span class="stat-value green" id="statEfficiency">-</span>
+                </div>
+            </div>
+            <div class="resize-handle left" id="leftResizeHandle"></div>
+        </aside>
+
+        <main class="arena">
+            <div class="round-header">
+                <div class="round-number" id="roundDisplay">READY</div>
+                <div class="round-status" id="roundStatus">Configure and launch the auction</div>
+            </div>
+
+            <div class="bidders-row">
+                <div class="bidder-card bidder-1" id="bidder1Card">
+                    <div class="bidder-header">
+                        <span class="bidder-name">BIDDER 1</span>
+                        <span class="bidder-model" id="b1Model">Claude 4.5 Sonnet</span>
+                    </div>
+                    <div class="value-display">
+                        <div class="value-label">Private Value</div>
+                        <div class="value-amount" id="b1Value">-</div>
+                    </div>
+                    <div class="bid-display">
+                        <div class="bid-label">Bid</div>
+                        <div class="bid-amount" id="b1Bid">-</div>
+                        <div class="bid-comparison" id="b1Compare"></div>
+                    </div>
+                    <div class="profit-display">
+                        <span class="profit-label">Round Profit</span>
+                        <span class="profit-amount zero" id="b1Profit">$0</span>
+                    </div>
+                    <div class="human-bid-panel" id="humanBidPanel1">
+                        <div class="human-bid-title">Your Turn to Bid</div>
+                        <div class="bid-slider">
+                            <input type="range" id="humanBidSlider1" min="0" max="20" value="10">
+                        </div>
+                        <div class="bid-preview" id="humanBidPreview1">$50</div>
+                        <button class="btn-submit-bid" id="btnSubmitBid1">SUBMIT BID</button>
+                    </div>
+                </div>
+
+                <div class="bidder-card bidder-2" id="bidder2Card">
+                    <div class="bidder-header">
+                        <span class="bidder-name">BIDDER 2</span>
+                        <span class="bidder-model" id="b2Model">GPT-4o</span>
+                    </div>
+                    <div class="value-display">
+                        <div class="value-label">Private Value</div>
+                        <div class="value-amount" id="b2Value">-</div>
+                    </div>
+                    <div class="bid-display">
+                        <div class="bid-label">Bid</div>
+                        <div class="bid-amount" id="b2Bid">-</div>
+                        <div class="bid-comparison" id="b2Compare"></div>
+                    </div>
+                    <div class="profit-display">
+                        <span class="profit-label">Round Profit</span>
+                        <span class="profit-amount zero" id="b2Profit">$0</span>
+                    </div>
+                    <div class="human-bid-panel" id="humanBidPanel2">
+                        <div class="human-bid-title">Your Turn to Bid</div>
+                        <div class="bid-slider">
+                            <input type="range" id="humanBidSlider2" min="0" max="20" value="10">
+                        </div>
+                        <div class="bid-preview" id="humanBidPreview2">$50</div>
+                        <button class="btn-submit-bid" id="btnSubmitBid2">SUBMIT BID</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="auction-result" id="auctionResult">
+                <div class="result-winner" id="resultWinner">BIDDER 1 WINS!</div>
+                <div class="result-details" id="resultDetails">Paid $50 for item valued at $80</div>
+                <div class="efficiency-badge efficient" id="efficiencyBadge">EFFICIENT</div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="profitChart"></canvas>
+            </div>
+
+        </main>
+
+        <aside class="right-panel">
+            <div class="resize-handle right" id="rightResizeHandle"></div>
+            <div class="reasoning-header">
+                <h2>LLM Reasoning</h2>
+                <span class="round-badge" id="thinkingRound">-</span>
+            </div>
+            <div class="reasoning-tabs">
+                <button class="reasoning-tab active" data-tab="b1">BIDDER 1</button>
+                <button class="reasoning-tab" data-tab="b2">BIDDER 2</button>
+            </div>
+            <div class="reasoning-content">
+                <div class="reasoning-text empty" id="reasoningText">Select a round to view reasoning</div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Help Modal -->
+    <div class="modal-overlay" id="helpModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">Sealed-Bid Auctions</span>
+            </div>
+            <div class="modal-body">
+                <div class="help-section">
+                    <h3>Overview</h3>
+                    <p>Watch LLM agents compete in sealed-bid auctions with independent private values. Each round, bidders receive a random private value and must decide how much to bid without knowing the opponent's value or bid.</p>
+                </div>
+                <div class="help-section">
+                    <h3>Auction Formats</h3>
+                    <table class="help-table">
+                        <tr>
+                            <td><strong>First-Price</strong></td>
+                            <td>Highest bidder wins and pays their own bid. Strategic bid shading is optimal.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Second-Price (Vickrey)</strong></td>
+                            <td>Highest bidder wins but pays the second-highest bid. Truthful bidding (bid = value) is a dominant strategy.</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="help-section">
+                    <h3>Theoretical Equilibria</h3>
+                    <p>With 2 bidders and uniform values on [0, max]:</p>
+                    <div class="formula">First-Price Equilibrium: bid = value / 2</div>
+                    <div class="formula">Second-Price Equilibrium: bid = value (dominant)</div>
+                    <p>The "bid comparison" shows how the actual bid compares to the theoretical equilibrium bid.</p>
+                </div>
+                <div class="help-section">
+                    <h3>Key Metrics</h3>
+                    <table class="help-table">
+                        <tr>
+                            <td><strong>Efficiency</strong></td>
+                            <td>% of rounds where the highest-value bidder won</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Bid Shading</strong></td>
+                            <td>How much below value the bidder bids on average</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Revenue</strong></td>
+                            <td>Total amount paid across all auctions</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="help-section">
+                    <h3>Strategic Insights</h3>
+                    <p>In first-price auctions, bidding your true value guarantees zero profit if you win. The optimal strategy involves "bid shading" - bidding below your value to maintain profit margin while still having a reasonable chance to win.</p>
+                    <p>In second-price auctions, your bid only affects whether you win, not what you pay. Bidding truthfully is always optimal regardless of opponent behavior.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay settings-modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">Auction Settings</span>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label class="setting-label">Auction Format</label>
+                    <select class="setting-input" id="auctionFormat">
+                        <option value="first_price">First-Price</option>
+                        <option value="second_price">Second-Price (Vickrey)</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">Number of Rounds</label>
+                    <input type="number" class="setting-input" id="numRounds" value="30" min="1" max="100">
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">Maximum Value ($)</label>
+                    <input type="number" class="setting-input" id="maxValue" value="100" min="10" max="1000">
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">Bid Step ($)</label>
+                    <input type="number" class="setting-input" id="bidStep" value="5" min="1" max="50">
+                </div>
+                <div class="btn-row">
+                    <button class="btn-apply" id="btnApplySettings">Apply Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('Auction script starting v2');
+        const $ = id => document.getElementById(id);
+
+        // DOM elements
+        const selectB1 = $('selectB1');
+        const selectB2 = $('selectB2');
+        const btnStart = $('btnStart');
+        const btnStop = $('btnStop');
+        const btnHelp = $('btnHelp');
+        const btnSettings = $('btnSettings');
+        const helpModal = $('helpModal');
+        const settingsModal = $('settingsModal');
+        const btnApplySettings = $('btnApplySettings');
+        const auctionFormat = $('auctionFormat');
+        const numRounds = $('numRounds');
+        const maxValue = $('maxValue');
+        const bidStep = $('bidStep');
+        const roundList = $('roundList');
+        let totalRoundsConfig = 30;
+
+        // State
+        let ws = null;
+        let gameRunning = false;
+        let bidGrid = [];
+        let currentAuctionFormat = 'first_price';
+        let chart = null;
+        let chartData = { b1: [], b2: [] };
+        let activeGameId = null; // To filter messages from old games
+        
+        // History state
+        let gameHistory = [];
+        let selectedRound = null;
+        let activeTab = 'b1';
+
+        // Initialize chart
+        function initChart() {
+            const ctx = $('profitChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Bidder 1 Total',
+                            data: [],
+                            borderColor: '#00f0ff',
+                            backgroundColor: 'rgba(0, 240, 255, 0.1)',
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: 'Bidder 2 Total',
+                            data: [],
+                            borderColor: '#ffd700',
+                            backgroundColor: 'rgba(255, 215, 0, 0.1)',
+                            tension: 0.3,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#6a6a8a', font: { family: 'Rajdhani' } }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#6a6a8a' }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#6a6a8a' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // WebSocket connection
+        function connect() {
+            // Use hardcoded path like the working pricing game
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${location.host}/games/auctions/ws`;
+            console.log('Connecting to:', wsUrl);
+            
+            try {
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    console.log('Connected to auction server');
+                    $('status').className = 'status-indicator connected';
+                    $('status').querySelector('.status-text').textContent = 'Connected';
+                };
+                ws.onclose = (e) => {
+                    console.log('Disconnected', e.code, e.reason);
+                    $('status').className = 'status-indicator';
+                    // Show error code in status for debugging
+                    $('status').querySelector('.status-text').textContent = `Offline (Code: ${e.code})`;
+                    setTimeout(connect, 2000);
+                };
+                ws.onerror = (e) => {
+                    console.error('WebSocket error:', e);
+                    $('status').querySelector('.status-text').textContent = 'Connection Error';
+                };
+                ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+            } catch (e) {
+                console.error('Connection failed:', e);
+                $('status').querySelector('.status-text').textContent = 'Init Error';
+            }
+        }
+
+        function handleMessage(data) {
+            // Filter messages: if this message has a game_id, it must match our activeGameId
+            // Exception: game_start messages (which set the new ID)
+            if (data.type === 'game_start') {
+                // Always accept start, update our ID
+                activeGameId = data.game_id;
+                onGameStart(data);
+                return;
+            }
+
+            // Strict filtering:
+            // 1. If message has an ID and we have no active game (stopped), ignore it.
+            // 2. If message has an ID and it doesn't match our active game, ignore it.
+            if (data.game_id) {
+                if (!activeGameId || data.game_id !== activeGameId) {
+                    console.warn('Ignored zombie message:', data.type, data.game_id, 'Active:', activeGameId);
+                    return;
+                }
+            }
+
+            switch (data.type) {
+                case 'round_start':
+                    onRoundStart(data);
+                    break;
+                case 'thinking':
+                    onThinking(data);
+                    break;
+                case 'bids_revealed':
+                    onBidsRevealed(data);
+                    break;
+                case 'round_result':
+                    onRoundResult(data);
+                    break;
+                case 'game_end':
+                    onGameEnd(data);
+                    break;
+                case 'game_stopped':
+                    onGameStopped(data);
+                    break;
+                case 'human_turn':
+                    onHumanTurn(data);
+                    break;
+            }
+        }
+
+        function onGameStart(data) {
+            console.log('Game Start', data);
+            gameRunning = true;
+            
+            // 1. Clear reasoning
+            gameHistory = [];
+            selectedRound = null;
+            updateReasoningDisplay();
+
+            // 2. Clear round list
+            const rl = $('roundList');
+            if (rl) rl.innerHTML = '<div class="empty-state">Auction in progress...</div>';
+
+            // 3. Update buttons
+            if (btnStart) {
+                btnStart.disabled = true;
+                btnStart.style.display = 'none';
+            }
+            if (btnStop) btnStop.style.display = 'inline-block';
+
+            // 4. Update config
+            if (data.bid_grid) bidGrid = data.bid_grid;
+            if (data.auction_format) currentAuctionFormat = data.auction_format;
+
+            // 5. Update status
+            const status = $('status');
+            if (status) {
+                status.className = 'status-indicator playing';
+                status.querySelector('.status-text').textContent = 'Playing';
+            }
+
+            // 6. Reset Chart (safely)
+            if (chart) {
+                try {
+                    chart.data.labels = [];
+                    chart.data.datasets[0].data = [];
+                    chart.data.datasets[1].data = [];
+                    chart.update();
+                } catch (e) {
+                    console.error('Error resetting chart:', e);
+                }
+            }
+            chartData = { b1: [], b2: [] };
+
+            // 7. Reset Stats
+            $('statRound').textContent = `0 / ${data.total_rounds}`;
+            $('statB1Total').textContent = '$0';
+            $('statB2Total').textContent = '$0';
+            $('statEfficiency').textContent = '-';
+            $('b1Value').textContent = '-';
+            $('b2Value').textContent = '-';
+            $('b1Bid').textContent = '-';
+            $('b2Bid').textContent = '-';
+            $('b1Compare').textContent = '';
+            $('b2Compare').textContent = '';
+            $('b1Profit').textContent = '$0';
+            $('b2Profit').textContent = '$0';
+            $('b1Profit').className = 'profit-amount zero';
+            $('b2Profit').className = 'profit-amount zero';
+            
+            // Remove previous winner highlighting
+            $('bidder1Card').classList.remove('won', 'thinking');
+            $('bidder2Card').classList.remove('won', 'thinking');
+
+            $('roundDisplay').textContent = 'STARTING';
+            $('roundStatus').textContent = `${data.format_name} Auction - ${data.total_rounds} rounds`;
+
+            $('b1Model').textContent = data.b1_model;
+            $('b2Model').textContent = data.b2_model;
+
+            // Note: infoFormat and infoPayment elements were removed from the HTML
+            // Format info is now shown in roundStatus instead
+
+            $('auctionResult').classList.remove('visible');
+
+            // Force hide human panels and reset state
+            $('humanBidPanel1').classList.remove('visible');
+            $('humanBidPanel2').classList.remove('visible');
+
+            // Setup human bid sliders
+            const maxIdx = bidGrid.length - 1;
+            $('humanBidSlider1').max = maxIdx;
+            $('humanBidSlider2').max = maxIdx;
+            $('humanBidSlider1').value = Math.floor(maxIdx / 2);
+            $('humanBidSlider2').value = Math.floor(maxIdx / 2);
+            updateBidPreview(1);
+            updateBidPreview(2);
+        }
+
+        function onRoundStart(data) {
+            $('roundDisplay').textContent = `ROUND ${data.round}`;
+            $('roundStatus').textContent = 'Bidders evaluating...';
+            $('statRound').textContent = `${data.round} / ${numRounds.value}`;
+
+            // Add to history
+            gameHistory.push({
+                round: data.round,
+                b1: { value: data.b1_value, bid: null, thinking: '' },
+                b2: { value: data.b2_value, bid: null, thinking: '' },
+                winner: null
+            });
+            selectedRound = data.round;
+            renderRoundList(); // Just to add placeholder or ensure list is ready
+            updateReasoningDisplay();
+
+            // Show values - only show own value if human, otherwise hide until bids revealed
+            // null means the value is hidden (opponent's private value)
+            $('b1Value').textContent = data.b1_value !== null ? `$${data.b1_value}` : '???';
+            $('b2Value').textContent = data.b2_value !== null ? `$${data.b2_value}` : '???';
+
+            // Reset bids
+            $('b1Bid').textContent = '...';
+            $('b2Bid').textContent = '...';
+            $('b1Compare').textContent = '';
+            $('b2Compare').textContent = '';
+            $('b1Profit').textContent = '$0';
+            $('b2Profit').textContent = '$0';
+            $('b1Profit').className = 'profit-amount zero';
+            $('b2Profit').className = 'profit-amount zero';
+
+            $('bidder1Card').classList.remove('thinking', 'won');
+            $('bidder2Card').classList.remove('thinking', 'won');
+            $('auctionResult').classList.remove('visible');
+        }
+
+        function onThinking(data) {
+            const card = data.bidder === 1 ? $('bidder1Card') : $('bidder2Card');
+            card.classList.add('thinking');
+            $('roundStatus').textContent = `Bidder ${data.bidder} thinking...`;
+        }
+
+        // New handler for when both bids are revealed simultaneously (after both bidders submit)
+        function onBidsRevealed(data) {
+            // Remove thinking states from both cards
+            $('bidder1Card').classList.remove('thinking');
+            $('bidder2Card').classList.remove('thinking');
+
+            // Update both values now that bids are revealed
+            $('b1Value').textContent = `$${data.b1_value}`;
+            $('b2Value').textContent = `$${data.b2_value}`;
+
+            // Update bids
+            $('b1Bid').textContent = `$${data.b1_bid}`;
+            $('b2Bid').textContent = `$${data.b2_bid}`;
+
+            // Helper function for bid comparison
+            function updateBidComparison(bidder, bid, theoBid) {
+                const compareEl = $(`b${bidder}Compare`);
+                const diff = bid - theoBid;
+                const tolerance = bidGrid[1] - bidGrid[0];
+
+                if (Math.abs(diff) <= tolerance) {
+                    compareEl.textContent = 'Near equilibrium';
+                    compareEl.className = 'bid-comparison';
+                } else if (currentAuctionFormat === 'second_price') {
+                    if (diff > 0) {
+                        compareEl.textContent = `+$${diff} (overbid)`;
+                    } else {
+                        compareEl.textContent = `$${diff} (underbid)`;
+                    }
+                    compareEl.className = 'bid-comparison bad';
+                } else {
+                    if (diff > 0) {
+                        compareEl.textContent = `+$${diff} (aggressive)`;
+                        compareEl.className = 'bid-comparison bad';
+                    } else if (bid < theoBid * 0.8) {
+                        compareEl.textContent = `$${diff} (too passive)`;
+                        compareEl.className = 'bid-comparison bad';
+                    } else {
+                        compareEl.textContent = `$${diff} (optimal shading)`;
+                        compareEl.className = 'bid-comparison good';
+                    }
+                }
+            }
+
+            updateBidComparison(1, data.b1_bid, data.b1_theoretical_bid);
+            updateBidComparison(2, data.b2_bid, data.b2_theoretical_bid);
+
+            // Update history
+            // Robustly find the correct round object instead of assuming last one
+            // This prevents zombie messages from old games (if any leak through) from corrupting current state
+            let curr = gameHistory.find(r => r.round === data.round);
+            
+            // If round not found (missed round_start?), create it
+            if (!curr) {
+                 curr = {
+                    round: data.round,
+                    b1: { value: null, bid: null, thinking: '' },
+                    b2: { value: null, bid: null, thinking: '' },
+                    winner: null
+                };
+                gameHistory.push(curr);
+                gameHistory.sort((a, b) => a.round - b.round);
+            }
+
+            if (curr) {
+                curr.b1.value = data.b1_value;
+                curr.b1.bid = data.b1_bid;
+                curr.b1.thinking = data.b1_thinking;
+                
+                curr.b2.value = data.b2_value;
+                curr.b2.bid = data.b2_bid;
+                curr.b2.thinking = data.b2_thinking;
+                
+                // Only update display if this is the currently selected round
+                if (selectedRound === data.round) {
+                    updateReasoningDisplay();
+                }
+            }
+
+            // Hide human panels
+            $('humanBidPanel1').classList.remove('visible');
+            $('humanBidPanel2').classList.remove('visible');
+        }
+
+        function onRoundResult(data) {
+            // Update profits
+            const b1ProfitEl = $('b1Profit');
+            const b2ProfitEl = $('b2Profit');
+
+            b1ProfitEl.textContent = data.b1_profit >= 0 ? `+$${data.b1_profit}` : `-$${Math.abs(data.b1_profit)}`;
+            b2ProfitEl.textContent = data.b2_profit >= 0 ? `+$${data.b2_profit}` : `-$${Math.abs(data.b2_profit)}`;
+
+            b1ProfitEl.className = `profit-amount ${data.b1_profit > 0 ? 'positive' : data.b1_profit < 0 ? 'negative' : 'zero'}`;
+            b2ProfitEl.className = `profit-amount ${data.b2_profit > 0 ? 'positive' : data.b2_profit < 0 ? 'negative' : 'zero'}`;
+
+            // Highlight winner
+            if (data.winner === 1) {
+                $('bidder1Card').classList.add('won');
+            } else {
+                $('bidder2Card').classList.add('won');
+            }
+
+            // Show result banner
+            const resultEl = $('auctionResult');
+            const winnerEl = $('resultWinner');
+            const detailsEl = $('resultDetails');
+            const effBadge = $('efficiencyBadge');
+
+            winnerEl.textContent = `BIDDER ${data.winner} WINS!`;
+            winnerEl.className = `result-winner b${data.winner}`;
+
+            const winnerValue = data.winner === 1 ? data.b1_value : data.b2_value;
+            const winnerProfit = data.winner === 1 ? data.b1_profit : data.b2_profit;
+            detailsEl.textContent = `Paid $${data.price_paid} for item valued at $${winnerValue} (Profit: $${winnerProfit})`;
+
+            effBadge.textContent = data.efficient ? 'EFFICIENT' : 'INEFFICIENT';
+            effBadge.className = `efficiency-badge ${data.efficient ? 'efficient' : 'inefficient'}`;
+
+            resultEl.classList.add('visible');
+
+            // Update stats
+            $('statB1Total').textContent = `$${Math.round(data.b1_total)}`;
+            $('statB2Total').textContent = `$${Math.round(data.b2_total)}`;
+            $('statEfficiency').textContent = `${(data.efficiency_rate * 100).toFixed(1)}%`;
+            $('statRound').textContent = `${data.round} / ${totalRoundsConfig}`;
+
+            // Update chart
+            chart.data.labels.push(data.round);
+            chart.data.datasets[0].data.push(data.b1_total);
+            chart.data.datasets[1].data.push(data.b2_total);
+            chart.update();
+
+            // Update history winner and ensure values are synced (robustness)
+            // Robustly find the correct round object to avoid zombie data
+            const curr = gameHistory.find(r => r.round === data.round);
+            if (curr) {
+                curr.winner = data.winner;
+                // Force update values from result to ensure no nulls even if bids_revealed was missed
+                // But only if we have valid non-null values in the result data
+                if (data.b1_value !== undefined && data.b1_value !== null) curr.b1.value = data.b1_value;
+                if (data.b1_bid !== undefined && data.b1_bid !== null) curr.b1.bid = data.b1_bid;
+                if (data.b2_value !== undefined && data.b2_value !== null) curr.b2.value = data.b2_value;
+                if (data.b2_bid !== undefined && data.b2_bid !== null) curr.b2.bid = data.b2_bid;
+                
+                // Important: Also update thinking/reasoning if it wasn't captured before
+                // Note: round_result usually doesn't have reasoning, but bids_revealed does.
+                // If bids_revealed was missed, we might miss reasoning.
+                // However, reasoning is large text, so we rely on bids_revealed for it.
+                // If reasoning is missing, we can try to fetch it or leave as is.
+                
+                // Update reasoning display if this round is selected
+                if (selectedRound === data.round) {
+                    updateReasoningDisplay();
+                }
+            } else {
+                // If we receive a result for a round we don't have in history (e.g. missed round_start or bids_revealed),
+                // we should retroactively add it to keep history consistent.
+                console.warn(`Received result for round ${data.round} but it was not in history. Retroactively adding.`);
+                gameHistory.push({
+                    round: data.round,
+                    b1: { value: data.b1_value, bid: data.b1_bid, thinking: '' }, // We might miss reasoning here
+                    b2: { value: data.b2_value, bid: data.b2_bid, thinking: '' },
+                    winner: data.winner
+                });
+                // Re-sort history just in case
+                gameHistory.sort((a, b) => a.round - b.round);
+                
+                if (selectedRound === null) {
+                    selectRound(data.round);
+                }
+            }
+            renderRoundList();
+        }
+
+        function onGameEnd(data) {
+            gameRunning = false;
+            btnStart.disabled = false;
+            btnStart.style.display = 'inline-block';
+            btnStop.style.display = 'none';
+
+            // Update status back to Connected
+            $('status').className = 'status-indicator connected';
+            $('status').querySelector('.status-text').textContent = 'Connected';
+
+            let winnerText;
+            if (data.winner === 0) {
+                winnerText = "IT'S A TIE!";
+            } else {
+                winnerText = `BIDDER ${data.winner} WINS THE SERIES!`;
+            }
+
+            $('roundDisplay').textContent = 'COMPLETE';
+            $('roundStatus').textContent = `${winnerText} | Efficiency: ${(data.efficiency_rate * 100).toFixed(1)}%`;
+
+            // Show final shading stats
+            console.log(`B1 Avg Shading: ${(data.b1_avg_shading * 100).toFixed(1)}%`);
+            console.log(`B2 Avg Shading: ${(data.b2_avg_shading * 100).toFixed(1)}%`);
+        }
+
+        function onGameStopped(data) {
+            // Match behavior of matrix_2x2 and pricing games:
+            // - Only update button/status UI
+            // - Do NOT clear history (that happens in game_start)
+            // - The activeGameId filter blocks any zombie messages anyway
+
+            gameRunning = false;
+            // Clear active game ID to block any further messages from this game
+            activeGameId = null;
+
+            // Update buttons
+            btnStart.disabled = false;
+            btnStart.style.display = 'inline-block';
+            btnStop.style.display = 'none';
+            btnStop.disabled = false;
+            btnStop.textContent = 'STOP';
+
+            // Update status back to Connected
+            $('status').className = 'status-indicator connected';
+            $('status').querySelector('.status-text').textContent = 'Connected';
+
+            // Hide human panels (if visible)
+            $('humanBidPanel1').classList.remove('visible');
+            $('humanBidPanel2').classList.remove('visible');
+
+            // Remove thinking state from cards
+            $('bidder1Card').classList.remove('thinking');
+            $('bidder2Card').classList.remove('thinking');
+
+            // Update round display
+            $('roundDisplay').textContent = 'STOPPED';
+            $('roundStatus').textContent = 'Game stopped. Click LAUNCH AUCTION to start again.';
+        }
+
+        function stopGame() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            ws.send(JSON.stringify({ type: 'stop_game' }));
+            // Disable button immediately to prevent double-clicks
+            btnStop.disabled = true;
+            btnStop.textContent = 'STOPPING...';
+        }
+
+        function onHumanTurn(data) {
+            const panel = $(`humanBidPanel${data.bidder}`);
+            panel.classList.add('visible');
+
+            // Update slider max based on bid grid
+            const slider = $(`humanBidSlider${data.bidder}`);
+            slider.max = bidGrid.length - 1;
+
+            // Suggest optimal bid based on auction format
+            // First-price: bid ≈ value/2 (Nash equilibrium with bid shading)
+            // Second-price: bid = value (truthful bidding is dominant strategy)
+            const targetBid = currentAuctionFormat === 'second_price' ? data.value : data.value / 2;
+            const suggestedIdx = Math.floor(bidGrid.findIndex(b => b >= targetBid));
+            slider.value = Math.max(0, suggestedIdx);
+            updateBidPreview(data.bidder);
+        }
+
+        function updateBidPreview(bidder) {
+            const slider = $(`humanBidSlider${bidder}`);
+            const preview = $(`humanBidPreview${bidder}`);
+            const idx = parseInt(slider.value);
+            preview.textContent = `$${bidGrid[idx] || 0}`;
+        }
+
+        function submitHumanBid(bidder) {
+            const slider = $(`humanBidSlider${bidder}`);
+            const bidIndex = parseInt(slider.value);
+            ws.send(JSON.stringify({
+                type: 'human_choice',
+                bidder: bidder,
+                bid_index: bidIndex
+            }));
+            $(`humanBidPanel${bidder}`).classList.remove('visible');
+        }
+
+        function startGame() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('Not connected to server');
+                return;
+            }
+
+            totalRoundsConfig = parseInt(numRounds.value);
+            ws.send(JSON.stringify({
+                type: 'start_game',
+                b1_model: selectB1.value,
+                b2_model: selectB2.value,
+                rounds: parseInt(numRounds.value),
+                config: {
+                    auction_format: auctionFormat.value,
+                    max_value: parseInt(maxValue.value),
+                    bid_step: parseInt(bidStep.value)
+                }
+            }));
+        }
+
+        // UI Render Functions
+        function renderRoundList() {
+            const list = $('roundList');
+            list.innerHTML = '';
+
+            // If no history, show empty state
+            if (gameHistory.length === 0) {
+                list.innerHTML = '<div class="empty-state">Auction in progress...</div>';
+                return;
+            }
+
+            // Render cards in reverse order (newest top)
+            gameHistory.slice().reverse().forEach(r => {
+                // Skip if incomplete (round started but not resulted)
+                if (r.winner === null) return;
+
+                const card = document.createElement('div');
+                card.className = 'round-card' + (selectedRound === r.round ? ' active' : '');
+                card.dataset.round = r.round;
+                card.innerHTML = `
+                    <div class="round-card-header">
+                        <span class="round-num">ROUND ${r.round}</span>
+                        <span class="round-winner b${r.winner}">B${r.winner} WON</span>
+                    </div>
+                    <div class="round-choices">
+                        <div class="round-choice b1">
+                            <span class="choice-main">B1: $${r.b1.bid}</span>
+                            <span class="choice-sub">Val: $${r.b1.value}</span>
+                        </div>
+                        <div class="round-choice b2">
+                            <span class="choice-main">B2: $${r.b2.bid}</span>
+                            <span class="choice-sub">Val: $${r.b2.value}</span>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        function updateReasoningDisplay() {
+            const roundData = gameHistory.find(r => r.round === selectedRound);
+            $('thinkingRound').textContent = selectedRound ? `Round ${selectedRound}` : '-';
+
+            if (!roundData) {
+                $('reasoningText').className = 'reasoning-text empty';
+                $('reasoningText').textContent = 'Select a round to view reasoning';
+                return;
+            }
+
+            const data = activeTab === 'b1' ? roundData.b1 : roundData.b2;
+            const text = data.thinking || 'No reasoning available';
+
+            $('reasoningText').className = 'reasoning-text';
+            $('reasoningText').textContent = text;
+        }
+
+        function selectRound(num) {
+            selectedRound = num;
+            renderRoundList();
+            updateReasoningDisplay();
+        }
+
+        // Event Listeners
+        $('roundList').addEventListener('click', (e) => {
+            const card = e.target.closest('.round-card');
+            if (card && card.dataset.round) {
+                selectRound(parseInt(card.dataset.round));
+            }
+        });
+
+        document.querySelectorAll('.reasoning-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                activeTab = tab.dataset.tab;
+                document.querySelectorAll('.reasoning-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                updateReasoningDisplay();
+            });
+        });
+
+        // ... existing event listeners ...
+        console.log('btnStart element:', btnStart);
+        btnStart.addEventListener('click', startGame);
+        btnStop.addEventListener('click', stopGame);
+        console.log('Event listener attached to btnStart');
+        btnHelp.addEventListener('click', () => helpModal.classList.add('visible'));
+        helpModal.addEventListener('click', (e) => {
+            if (e.target === helpModal) helpModal.classList.remove('visible');
+        });
+
+        // Settings modal handlers
+        btnSettings.addEventListener('click', () => settingsModal.classList.add('show'));
+        btnApplySettings.addEventListener('click', () => settingsModal.classList.remove('show'));
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) settingsModal.classList.remove('show');
+        });
+
+        // Reasoning tabs - removing old duplicate listener block
+        // document.querySelectorAll('.reasoning-tab').forEach(tab => {
+        //     tab.addEventListener('click', () => {
+        //         document.querySelectorAll('.reasoning-tab').forEach(t => t.classList.remove('active'));
+        //         document.querySelectorAll('.reasoning-box').forEach(b => b.classList.remove('active'));
+        //         tab.classList.add('active');
+        //         $(`reasoning${tab.dataset.tab.toUpperCase()}`).classList.add('active');
+        //     });
+        // });
+
+        // Human bid sliders
+        $('humanBidSlider1').addEventListener('input', () => updateBidPreview(1));
+        $('humanBidSlider2').addEventListener('input', () => updateBidPreview(2));
+        $('btnSubmitBid1').addEventListener('click', () => submitHumanBid(1));
+        $('btnSubmitBid2').addEventListener('click', () => submitHumanBid(2));
+
+        // Resizable panels
+        const layout = $('layout');
+        const leftResizeHandle = $('leftResizeHandle');
+        const rightResizeHandle = $('rightResizeHandle');
+        let isResizingLeft = false;
+        let isResizingRight = false;
+
+        leftResizeHandle.addEventListener('mousedown', (e) => {
+            isResizingLeft = true;
+            document.body.style.cursor = 'col-resize';
+            e.preventDefault();
+        });
+
+        rightResizeHandle.addEventListener('mousedown', (e) => {
+            isResizingRight = true;
+            document.body.style.cursor = 'col-resize';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isResizingLeft) {
+                const newWidth = Math.max(200, Math.min(500, e.clientX));
+                document.documentElement.style.setProperty('--left-panel-width', newWidth + 'px');
+            }
+            if (isResizingRight) {
+                const newWidth = Math.max(300, Math.min(600, window.innerWidth - e.clientX));
+                document.documentElement.style.setProperty('--right-panel-width', newWidth + 'px');
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isResizingLeft = false;
+            isResizingRight = false;
+            document.body.style.cursor = '';
+        });
+
+        // Initialize
+        try {
+            initChart();
+            console.log('Chart initialized');
+        } catch (e) {
+            console.error('Chart init failed:', e);
+        }
+        connect();
+        console.log('Connect called');
+    </script>
+</body>
+</html>

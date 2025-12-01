@@ -1,12 +1,11 @@
 """
-WebSocket server for 2x2 Matrix Games.
+WebSocket server for Algorithmic Pricing Game.
 """
 
 import asyncio
 import os
 import sys
 
-# Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -15,11 +14,15 @@ from fastapi.responses import FileResponse
 
 from shared.config import MODELS, get_api_key
 from shared.llm_player import LLMPlayer, PlayerResponse
-from .game import GameState, Choice, play_round, get_prompt, format_history, parse_choice, MatrixPlayerResponse
+from .game import (
+    GameState, MarketConfig, PricingPlayerResponse,
+    play_round, get_prompt, format_history, parse_price_choice,
+    compute_nash_profit, compute_monopoly_profit
+)
 
 
-class Matrix2x2Manager:
-    """Game manager for 2x2 matrix games."""
+class PricingGameManager:
+    """Game manager for algorithmic pricing game."""
 
     def __init__(self):
         self.connections = []
@@ -49,14 +52,14 @@ class Matrix2x2Manager:
             except:
                 pass
 
-    def set_human_choice(self, choice: str):
-        """Called when human submits their choice."""
+    def set_human_choice(self, choice: int):
+        """Called when human submits their price choice."""
         self.human_choice = choice
         if self.human_choice_event:
             self.human_choice_event.set()
 
-    async def get_human_choice(self, player_num: int, state: GameState) -> MatrixPlayerResponse:
-        """Wait for human to make a choice."""
+    async def get_human_choice(self, player_num: int, state: GameState) -> PricingPlayerResponse:
+        """Wait for human to make a price choice."""
         self.human_choice_event = asyncio.Event()
         self.human_choice = None
 
@@ -64,7 +67,8 @@ class Matrix2x2Manager:
             "type": "human_turn",
             "player": player_num,
             "round": state.current_round,
-            "total_rounds": state.total_rounds
+            "total_rounds": state.total_rounds,
+            "prices": state.config.prices
         })
 
         await self.human_choice_event.wait()
@@ -73,32 +77,37 @@ class Matrix2x2Manager:
         if self.stop_game:
             return None
 
-        choice = Choice.A if self.human_choice == "A" else Choice.B
-        return MatrixPlayerResponse(
-            choice=choice,
+        price_index = self.human_choice
+        return PricingPlayerResponse(
+            price_index=price_index,
+            price=state.config.prices[price_index],
             thinking="Human player",
-            raw_response=f"Human chose {self.human_choice}"
+            raw_response=f"Human chose price index {price_index}"
         )
 
-    async def get_llm_choice(self, player: LLMPlayer, state: GameState, player_num: int, payoff_matrix: dict) -> MatrixPlayerResponse:
-        """Get choice from LLM player."""
+    async def get_llm_choice(self, player: LLMPlayer, state: GameState, player_num: int) -> PricingPlayerResponse:
+        """Get price choice from LLM player."""
         history = format_history(state, player_num)
-        user_msg = f"{history}\n\nRound {state.current_round} of {state.total_rounds}. Choose A or B:"
+        user_msg = f"{history}\n\nRound {state.current_round} of {state.total_rounds}. Choose your price (0-{len(state.config.prices)-1}):"
 
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(None, player.get_response, user_msg)
 
-        choice = parse_choice(response.raw_response)
-        return MatrixPlayerResponse(
-            choice=choice,
+        price_index = parse_price_choice(response.raw_response, state.config)
+        return PricingPlayerResponse(
+            price_index=price_index,
+            price=state.config.prices[price_index],
             thinking=response.thinking,
             raw_response=response.raw_response
         )
 
-    async def run_game(self, p1_model: str, p2_model: str, rounds: int = 10, payoff_matrix: dict = None):
+    async def run_game(self, p1_model: str, p2_model: str, rounds: int = 50, config_params: dict = None):
         # Note: handle_message now handles stopping any previous game before calling this
         self.game_running = True
-        state = GameState(total_rounds=rounds, payoff_matrix=payoff_matrix)
+
+        # Build market config from parameters
+        config = MarketConfig(**(config_params or {}))
+        state = GameState(total_rounds=rounds, config=config)
         self.current_state = state
 
         p1_is_human = (p1_model == "human")
@@ -109,19 +118,29 @@ class Matrix2x2Manager:
 
         if not p1_is_human:
             p1_provider, p1_name = MODELS[p1_model]
-            system_prompt = get_prompt(1, rounds, payoff_matrix)
+            system_prompt = get_prompt(1, config, rounds)
             player1 = LLMPlayer(1, p1_name, p1_provider, system_prompt)
 
         if not p2_is_human:
             p2_provider, p2_name = MODELS[p2_model]
-            system_prompt = get_prompt(2, rounds, payoff_matrix)
+            system_prompt = get_prompt(2, config, rounds)
             player2 = LLMPlayer(2, p2_name, p2_provider, system_prompt)
+
+        # Send game start with market info
+        nash_profit = compute_nash_profit(config)
+        mono_profit = compute_monopoly_profit(config)
 
         await self.broadcast({
             "type": "game_start",
             "total_rounds": rounds,
             "p1_model": p1_model,
-            "p2_model": p2_model
+            "p2_model": p2_model,
+            "prices": config.prices,
+            "cost": config.cost,
+            "nash_price": config.prices[config.nash_index],
+            "monopoly_price": config.prices[config.monopoly_index],
+            "nash_profit": nash_profit,
+            "monopoly_profit": mono_profit
         })
 
         while not state.is_complete and not self.stop_game:
@@ -134,7 +153,7 @@ class Matrix2x2Manager:
                 if p1_resp is None:  # Game was stopped
                     break
             else:
-                p1_resp = await self.get_llm_choice(player1, state, 1, payoff_matrix)
+                p1_resp = await self.get_llm_choice(player1, state, 1)
 
             if self.stop_game:  # Check again after LLM call
                 break
@@ -142,7 +161,8 @@ class Matrix2x2Manager:
             await self.broadcast({
                 "type": "choice_made",
                 "player": 1,
-                "choice": p1_resp.choice.name,
+                "price_index": p1_resp.price_index,
+                "price": p1_resp.price,
                 "thinking": p1_resp.thinking,
                 "response": p1_resp.raw_response
             })
@@ -154,7 +174,7 @@ class Matrix2x2Manager:
                 if p2_resp is None:  # Game was stopped
                     break
             else:
-                p2_resp = await self.get_llm_choice(player2, state, 2, payoff_matrix)
+                p2_resp = await self.get_llm_choice(player2, state, 2)
 
             if self.stop_game:  # Check again after LLM call
                 break
@@ -162,36 +182,47 @@ class Matrix2x2Manager:
             await self.broadcast({
                 "type": "choice_made",
                 "player": 2,
-                "choice": p2_resp.choice.name,
+                "price_index": p2_resp.price_index,
+                "price": p2_resp.price,
                 "thinking": p2_resp.thinking,
                 "response": p2_resp.raw_response
             })
 
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.3)
 
-            result = play_round(state, p1_resp.choice, p2_resp.choice)
+            result = play_round(state, p1_resp.price_index, p2_resp.price_index)
 
             await self.broadcast({
                 "type": "round_result",
                 "round": result.round_num,
-                "p1_choice": result.p1_choice.name,
-                "p2_choice": result.p2_choice.name,
-                "p1_score": result.p1_score,
-                "p2_score": result.p2_score,
-                "p1_total": state.p1_total,
-                "p2_total": state.p2_total
+                "p1_price": result.p1_price,
+                "p2_price": result.p2_price,
+                "p1_price_index": result.p1_price_index,
+                "p2_price_index": result.p2_price_index,
+                "p1_profit": result.p1_profit,
+                "p2_profit": result.p2_profit,
+                "p1_demand": result.p1_demand,
+                "p2_demand": result.p2_demand,
+                "p1_total": state.p1_total_profit,
+                "p2_total": state.p2_total_profit,
+                "profit_gain": state.profit_gain
             })
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
 
         # Only broadcast game end if game completed naturally (not stopped)
         if not self.stop_game:
-            winner = 1 if state.p1_total > state.p2_total else (2 if state.p2_total > state.p1_total else 0)
+            winner = 1 if state.p1_total_profit > state.p2_total_profit else (
+                2 if state.p2_total_profit > state.p1_total_profit else 0)
+
             await self.broadcast({
                 "type": "game_end",
-                "p1_total": state.p1_total,
-                "p2_total": state.p2_total,
-                "winner": winner
+                "p1_total": state.p1_total_profit,
+                "p2_total": state.p2_total_profit,
+                "winner": winner,
+                "profit_gain": state.profit_gain,
+                "collusion_level": "High" if state.profit_gain > 0.7 else (
+                    "Moderate" if state.profit_gain > 0.3 else "Low/Competitive")
             })
 
         self.game_running = False
@@ -206,8 +237,9 @@ class Matrix2x2Manager:
             if self.current_state:
                 msg["stopped_at_round"] = self.current_state.current_round - 1
                 msg["total_rounds"] = self.current_state.total_rounds
-                msg["p1_total"] = self.current_state.p1_total
-                msg["p2_total"] = self.current_state.p2_total
+                msg["p1_total"] = self.current_state.p1_total_profit
+                msg["p2_total"] = self.current_state.p2_total_profit
+                msg["profit_gain"] = self.current_state.profit_gain
             await self.broadcast(msg)
             self.game_running = False
 
@@ -237,24 +269,22 @@ class Matrix2x2Manager:
             self.game_task = asyncio.create_task(self.run_game(
                 data.get("p1_model", "claude-4.5-sonnet"),
                 data.get("p2_model", "claude-4.5-sonnet"),
-                data.get("rounds", 10),
-                data.get("payoff_matrix")
+                data.get("rounds", 50),
+                data.get("config")
             ))
         elif data.get("type") == "stop_game":
             await self.stop_current_game()
         elif data.get("type") == "human_choice":
-            self.set_human_choice(data.get("choice"))
+            self.set_human_choice(data.get("price_index", 7))
 
 
-# Module-level manager instance
-manager = Matrix2x2Manager()
+manager = PricingGameManager()
 
 
 def create_app() -> FastAPI:
-    """Create the FastAPI app for 2x2 games."""
-    app = FastAPI(title="2x2 Matrix Games")
+    """Create the FastAPI app for pricing game."""
+    app = FastAPI(title="Algorithmic Pricing Game")
 
-    # Get the directory where this file is located
     module_dir = os.path.dirname(os.path.abspath(__file__))
     static_dir = os.path.join(module_dir, "static")
 

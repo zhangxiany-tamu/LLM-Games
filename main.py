@@ -20,12 +20,17 @@ GAMES = {
         "description": "Classic 2x2 games: Battle of the Sexes, Prisoner's Dilemma, etc.",
         "module": "games.matrix_2x2"
     },
+    "pricing": {
+        "name": "Algorithmic Pricing",
+        "description": "Bertrand duopoly - investigating tacit collusion in LLM pricing agents",
+        "module": "games.pricing"
+    },
+    "auctions": {
+        "name": "Sealed-Bid Auctions",
+        "description": "First-price and second-price auctions with independent private values",
+        "module": "games.auctions"
+    },
     # Future games can be added here:
-    # "auction": {
-    #     "name": "Auctions",
-    #     "description": "First-price, second-price, and other auction formats",
-    #     "module": "games.auctions"
-    # },
     # "bargaining": {
     #     "name": "Bargaining Games",
     #     "description": "Ultimatum game, Nash bargaining, etc.",
@@ -56,6 +61,14 @@ def create_app() -> FastAPI:
     from games.matrix_2x2.server import create_app as create_matrix_app, manager as matrix_manager
     matrix_app = create_matrix_app()
     app.mount("/games/matrix_2x2", matrix_app)
+
+    from games.pricing.server import create_app as create_pricing_app, manager as pricing_manager
+    pricing_app = create_pricing_app()
+    app.mount("/games/pricing", pricing_app)
+
+    from games.auctions.server import create_app as create_auctions_app, manager as auctions_manager
+    auctions_app = create_auctions_app()
+    app.mount("/games/auctions", auctions_app)
 
     # Serve home page
     @app.get("/")
@@ -90,6 +103,12 @@ def run_game(game_id: str, host: str = "0.0.0.0", port: int = 8000):
     # Import and run the game module
     if game_id == "matrix_2x2":
         from games.matrix_2x2 import run
+        run(host=host, port=port)
+    elif game_id == "pricing":
+        from games.pricing import run
+        run(host=host, port=port)
+    elif game_id == "auctions":
+        from games.auctions import run
         run(host=host, port=port)
     # Add other games here as they are implemented
 

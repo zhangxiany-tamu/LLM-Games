@@ -428,27 +428,36 @@
                 </div>
             </a>
 
-            <div class="game-card coming-soon">
-                <span class="game-badge soon">Coming Soon</span>
+            <a href="/games/auctions" class="game-card available">
+                <span class="game-badge ready">Play Now</span>
                 <div class="game-icon">
                     <!-- Auction Gavel Icon -->
                     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M44 12L52 20L28 44L20 36L44 12Z" stroke="#ffd700" stroke-width="2" fill="rgba(255,215,0,0.15)"/>
-                        <path d="M48 8L56 16" stroke="#ffd700" stroke-width="3" stroke-linecap="round"/>
-                        <rect x="8" y="48" width="28" height="8" rx="2" stroke="#ffd700" stroke-width="2" fill="rgba(255,215,0,0.1)"/>
-                        <path d="M16 40L24 48" stroke="#ffd700" stroke-width="2" stroke-linecap="round"/>
-                        <circle cx="50" cy="14" r="3" fill="#ffd700" opacity="0.6"/>
+                        <path d="M44 12L52 20L28 44L20 36L44 12Z" stroke="url(#auction-grad)" stroke-width="2" fill="rgba(255,215,0,0.15)"/>
+                        <path d="M48 8L56 16" stroke="url(#auction-grad)" stroke-width="3" stroke-linecap="round"/>
+                        <rect x="8" y="48" width="28" height="8" rx="2" stroke="url(#auction-grad)" stroke-width="2" fill="rgba(255,215,0,0.1)"/>
+                        <path d="M16 40L24 48" stroke="url(#auction-grad)" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="50" cy="14" r="3" fill="#ffd700" opacity="0.8"/>
+                        <defs>
+                            <linearGradient id="auction-grad" x1="8" y1="56" x2="56" y2="8">
+                                <stop offset="0%" stop-color="#ffd700"/>
+                                <stop offset="100%" stop-color="#ffaa00"/>
+                            </linearGradient>
+                        </defs>
                     </svg>
                 </div>
-                <h2 class="game-title">Auctions</h2>
+                <h2 class="game-title">Sealed-Bid Auctions</h2>
                 <p class="game-description">
-                    First-price, second-price, English, and Dutch auction formats.
-                    Explore bidding strategies and revenue equivalence.
+                    First-price and second-price auctions with independent private values.
+                    Watch LLMs learn bid shading and optimal bidding strategies.
                 </p>
-            </div>
+                <div class="play-button">
+                    Launch Game <span class="play-arrow">→</span>
+                </div>
+            </a>
 
-            <div class="game-card coming-soon">
-                <span class="game-badge soon">Coming Soon</span>
+            <a href="/games/pricing" class="game-card available">
+                <span class="game-badge ready">Play Now</span>
                 <div class="game-icon">
                     <!-- Pricing Chart Icon -->
                     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -470,15 +479,18 @@
                 </div>
                 <h2 class="game-title">Algorithmic Pricing</h2>
                 <p class="game-description">
-                    Bertrand competition and algorithmic collusion experiments.
-                    Study how AI agents set prices in competitive markets.
+                    Bertrand duopoly investigating tacit collusion in LLM pricing agents.
+                    Track price trajectories and measure collusion with Profit Gain (Delta).
                 </p>
-            </div>
+                <div class="play-button">
+                    Launch Game <span class="play-arrow">→</span>
+                </div>
+            </a>
 
+            <!-- Coming Soon Games - Commented out until launched
             <div class="game-card coming-soon">
                 <span class="game-badge soon">Coming Soon</span>
                 <div class="game-icon">
-                    <!-- Handshake/Deal Icon -->
                     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M8 28L20 20L32 28L44 20L56 28" stroke="url(#bargain-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
                         <path d="M20 20V44" stroke="#ff2d95" stroke-width="2" stroke-linecap="round"/>
@@ -507,7 +519,6 @@
             <div class="game-card coming-soon">
                 <span class="game-badge soon">Coming Soon</span>
                 <div class="game-icon">
-                    <!-- Infinite Loop / Repeat Icon -->
                     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M16 32C16 24 22 18 30 18H34C42 18 48 24 48 32C48 40 42 46 34 46H30C22 46 16 40 16 32Z" stroke="url(#repeat-grad)" stroke-width="2.5" fill="none"/>
                         <path d="M8 32C8 20 18 10 32 10C46 10 56 20 56 32C56 44 46 54 32 54C18 54 8 44 8 32Z" stroke="url(#repeat-grad)" stroke-width="1.5" stroke-dasharray="4 4" fill="none" opacity="0.4"/>
@@ -533,7 +544,6 @@
             <div class="game-card coming-soon">
                 <span class="game-badge soon">Coming Soon</span>
                 <div class="game-icon">
-                    <!-- Signal/Broadcast Icon -->
                     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="32" cy="40" r="8" fill="url(#signal-grad)"/>
                         <path d="M20 28C24 24 28 22 32 22C36 22 40 24 44 28" stroke="#b347ff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
@@ -556,6 +566,7 @@
                     Explore how AI agents communicate and deceive.
                 </p>
             </div>
+            -->
         </div>
 
         <div class="features">

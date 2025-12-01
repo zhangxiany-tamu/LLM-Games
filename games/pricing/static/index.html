@@ -1,0 +1,1981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Algorithmic Pricing - LLM Arena</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-deep: #0a0a0f;
+            --bg-surface: #12121a;
+            --bg-card: #1a1a25;
+            --neon-pink: #ff2d95;
+            --neon-cyan: #00f0ff;
+            --neon-purple: #b347ff;
+            --neon-gold: #ffd700;
+            --neon-green: #00ff88;
+            --neon-red: #ff4444;
+            --text-primary: #ffffff;
+            --text-muted: #6a6a8a;
+            --glow-pink: 0 0 20px rgba(255, 45, 149, 0.5), 0 0 40px rgba(255, 45, 149, 0.3);
+            --glow-cyan: 0 0 20px rgba(0, 240, 255, 0.5), 0 0 40px rgba(0, 240, 255, 0.3);
+            --left-panel-width: 300px;
+            --right-panel-width: 400px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Scanline overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.1) 2px,
+                rgba(0, 0, 0, 0.1) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Ambient glow background */
+        body::after {
+            content: '';
+            position: fixed;
+            top: -200px;
+            left: -200px;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: var(--neon-pink);
+            filter: blur(150px);
+            opacity: 0.15;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: var(--left-panel-width) 1fr var(--right-panel-width);
+            grid-template-rows: auto 1fr;
+            height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            grid-column: 1 / -1;
+            background: linear-gradient(180deg, rgba(18, 18, 26, 0.95) 0%, rgba(10, 10, 15, 0.9) 100%);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 45, 149, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .back-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--neon-cyan);
+            text-decoration: none;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            padding: 8px 16px;
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .back-link:hover {
+            background: rgba(0, 240, 255, 0.1);
+            border-color: var(--neon-cyan);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            background: linear-gradient(90deg, var(--neon-pink), var(--neon-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(255, 45, 149, 0.5);
+            position: relative;
+        }
+        .logo::after {
+            content: 'LLM ARENA';
+            display: block;
+            font-size: 0.6rem;
+            font-weight: 500;
+            letter-spacing: 0.3em;
+            background: none;
+            -webkit-text-fill-color: var(--text-muted);
+            text-shadow: none;
+            margin-top: 4px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .vs-badge {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--neon-purple);
+            text-shadow: 0 0 10px rgba(179, 71, 255, 0.5);
+            padding: 0 16px;
+        }
+
+        select {
+            appearance: none;
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px 40px 12px 16px;
+            color: var(--text-primary);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            min-width: 180px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236a6a8a' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            transition: all 0.2s;
+        }
+        select:hover {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+        }
+        select:focus {
+            outline: none;
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+        }
+
+        .btn-start {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, var(--neon-pink) 0%, #ff6b35 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+        .btn-start::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+        .btn-start:hover::before { left: 100%; }
+        .btn-start:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--glow-pink);
+        }
+        .btn-start:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-stop {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #ff4444 0%, #cc3333 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+            display: none;
+        }
+        .btn-stop:hover {
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.5), 0 0 40px rgba(255, 68, 68, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            transition: all 0.3s;
+        }
+        .status-indicator.connected .status-dot {
+            background: #00ff88;
+            box-shadow: 0 0 10px #00ff88;
+            animation: pulse 2s infinite;
+        }
+        .status-indicator.playing .status-dot {
+            background: var(--neon-gold);
+            box-shadow: 0 0 10px var(--neon-gold);
+            animation: pulse 0.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Left Panel - Round History */
+        .left-panel {
+            background: var(--bg-surface);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .resize-handle {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 8px;
+            cursor: col-resize;
+            background: transparent;
+            z-index: 10;
+            transition: background 0.2s;
+        }
+        .resize-handle:hover,
+        .resize-handle.active {
+            background: linear-gradient(to right, transparent, rgba(0, 240, 255, 0.3), transparent);
+        }
+        .left-panel .resize-handle { right: 0; }
+        .right-panel .resize-handle { left: 0; }
+
+        .panel-header {
+            padding: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .panel-header h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .round-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        .round-list::-webkit-scrollbar { width: 4px; }
+        .round-list::-webkit-scrollbar-track { background: transparent; }
+        .round-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
+
+        .round-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .round-card:hover {
+            border-color: rgba(0, 240, 255, 0.3);
+            transform: translateX(4px);
+        }
+        .round-card.active {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+        }
+
+        .round-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .round-num {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--neon-cyan);
+        }
+        .round-delta {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .round-delta.high {
+            color: var(--neon-red);
+            background: rgba(255, 68, 68, 0.15);
+        }
+        .round-delta.low {
+            color: var(--neon-green);
+            background: rgba(0, 255, 136, 0.15);
+        }
+
+        .round-prices {
+            display: flex;
+            gap: 16px;
+            font-size: 0.9rem;
+        }
+        .round-price {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .round-price.p1 { color: var(--neon-pink); }
+        .round-price.p2 { color: var(--neon-cyan); }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 24px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Center - Game Arena */
+        .center {
+            background: var(--bg-deep);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px;
+            gap: 25px;
+            position: relative;
+            overflow-y: auto;
+        }
+
+        /* Grid background pattern */
+        .center::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255, 45, 149, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 45, 149, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
+        }
+
+        .round-display {
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+        .round-display-num {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 5rem;
+            font-weight: 900;
+            line-height: 1;
+            background: linear-gradient(180deg, var(--neon-pink) 0%, var(--neon-purple) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 30px rgba(255, 45, 149, 0.5));
+        }
+        .round-display-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 0.3em;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        .arena {
+            display: flex;
+            align-items: center;
+            gap: 50px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .player-station {
+            text-align: center;
+            min-width: 180px;
+        }
+        .player-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            margin-bottom: 8px;
+        }
+        .player-station.p1 .player-label { color: var(--neon-pink); }
+        .player-station.p2 .player-label { color: var(--neon-cyan); }
+
+        .player-model {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .player-profit {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 900;
+            line-height: 1;
+            margin-bottom: 16px;
+        }
+        .player-station.p1 .player-profit {
+            color: var(--neon-pink);
+            text-shadow: var(--glow-pink);
+        }
+        .player-station.p2 .player-profit {
+            color: var(--neon-cyan);
+            text-shadow: var(--glow-cyan);
+        }
+
+        .price-display {
+            width: 150px;
+            height: 140px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            padding: 10px;
+        }
+        .price-display.thinking {
+            animation: thinking-pulse 1s ease-in-out infinite;
+        }
+        .player-station.p1 .price-display.thinking {
+            border-color: var(--neon-pink);
+            box-shadow: var(--glow-pink);
+        }
+        .player-station.p2 .price-display.thinking {
+            border-color: var(--neon-cyan);
+            box-shadow: var(--glow-cyan);
+        }
+        @keyframes thinking-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .price-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        .player-station.p1 .price-value { color: var(--neon-pink); }
+        .player-station.p2 .price-value { color: var(--neon-cyan); }
+
+        .price-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .vs-display {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--neon-purple);
+            text-shadow: 0 0 30px rgba(179, 71, 255, 0.5);
+        }
+
+        /* Metrics */
+        .metrics-row {
+            display: flex;
+            gap: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px 24px;
+            text-align: center;
+            min-width: 140px;
+        }
+        .metric-card.with-sparkline {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .delta-sparkline {
+            width: 100%;
+            height: 30px;
+            margin-top: 8px;
+        }
+        .delta-sparkline svg {
+            width: 100%;
+            height: 100%;
+        }
+        .delta-sparkline .sparkline-path {
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .delta-sparkline .sparkline-area {
+            opacity: 0.2;
+        }
+        .delta-sparkline .sparkline-high {
+            stroke: var(--neon-green);
+        }
+        .delta-sparkline .sparkline-low {
+            stroke: var(--neon-red);
+        }
+        .delta-sparkline .area-high {
+            fill: var(--neon-green);
+        }
+        .delta-sparkline .area-low {
+            fill: var(--neon-red);
+        }
+        .metric-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .metric-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .metric-value.delta-high { color: var(--neon-red); }
+        .metric-value.delta-low { color: var(--neon-green); }
+
+        /* Chart Container */
+        .chart-container {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 24px;
+            width: 100%;
+            max-width: 800px;
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+        .chart-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            color: var(--text-primary);
+            text-align: center;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            text-shadow: 0 0 20px rgba(255, 45, 149, 0.3);
+        }
+        .chart-legend {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-primary);
+        }
+        .legend-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            box-shadow: 0 0 10px currentColor;
+        }
+        .legend-line {
+            width: 28px;
+            height: 3px;
+            border-radius: 2px;
+        }
+        .chart-wrapper {
+            height: 280px;
+            padding: 10px 0;
+        }
+
+        /* Right Panel - Reasoning */
+        .right-panel {
+            background: var(--bg-surface);
+            border-left: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .reasoning-header {
+            padding: 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .reasoning-header h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        .round-badge {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 6px 12px;
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: var(--neon-cyan);
+        }
+
+        .player-tabs {
+            display: flex;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .player-tab {
+            flex: 1;
+            padding: 16px;
+            text-align: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .player-tab:hover { background: rgba(255, 255, 255, 0.02); }
+        .player-tab.p1.active {
+            color: var(--neon-pink);
+            border-color: var(--neon-pink);
+            background: rgba(255, 45, 149, 0.05);
+        }
+        .player-tab.p2.active {
+            color: var(--neon-cyan);
+            border-color: var(--neon-cyan);
+            background: rgba(0, 240, 255, 0.05);
+        }
+
+        .reasoning-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+        .reasoning-content::-webkit-scrollbar { width: 4px; }
+        .reasoning-content::-webkit-scrollbar-track { background: transparent; }
+        .reasoning-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
+
+        .reasoning-text {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            line-height: 1.8;
+            color: rgba(255, 255, 255, 0.8);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .reasoning-text.empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 60px 24px;
+        }
+
+        /* Human Choice Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal-overlay.show {
+            display: flex;
+            animation: fade-in 0.3s;
+        }
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 40px 60px;
+            text-align: center;
+        }
+
+        .modal-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+        }
+
+        .modal-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--neon-gold);
+            margin-bottom: 24px;
+        }
+
+        .price-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+        .price-btn {
+            padding: 12px 8px;
+            background: var(--bg-deep);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .price-btn:hover {
+            border-color: var(--neon-gold);
+            background: rgba(255, 215, 0, 0.1);
+        }
+        .price-btn.selected {
+            border-color: var(--neon-gold);
+            background: rgba(255, 215, 0, 0.2);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+        }
+
+        .btn-submit {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            padding: 14px 40px;
+            background: linear-gradient(135deg, var(--neon-gold) 0%, #ff9500 100%);
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.4);
+        }
+
+        /* Winner Modal */
+        .winner-modal .modal-title.collusive { color: var(--neon-red); }
+        .winner-modal .modal-title.competitive { color: var(--neon-green); }
+
+        .btn-play-again {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            padding: 14px 40px;
+            background: linear-gradient(135deg, var(--neon-purple) 0%, var(--neon-pink) 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-play-again:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(179, 71, 255, 0.4);
+        }
+
+        /* Help and Settings Buttons */
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .icon-btn:hover {
+            border-color: var(--neon-cyan);
+            color: var(--neon-cyan);
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+        }
+        .icon-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Settings Modal */
+        .settings-modal .modal-card {
+            max-width: 500px;
+            text-align: left;
+        }
+        .settings-modal .modal-title {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .param-group {
+            margin-bottom: 20px;
+        }
+        .param-label {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            color: var(--neon-cyan);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .param-value {
+            color: var(--neon-pink);
+            font-size: 0.9rem;
+        }
+        .param-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .param-slider {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            background: var(--bg-deep);
+            border-radius: 3px;
+            outline: none;
+        }
+        .param-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--neon-pink), var(--neon-purple));
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 45, 149, 0.5);
+        }
+        .param-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--neon-pink), var(--neon-purple));
+            cursor: pointer;
+            border: none;
+        }
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        .btn-secondary {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            padding: 12px 24px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            border-color: var(--neon-cyan);
+            color: var(--neon-cyan);
+        }
+
+        /* Help Modal */
+        .help-modal .modal-card {
+            max-width: 700px;
+            max-height: 80vh;
+            overflow-y: auto;
+            text-align: left;
+        }
+        .help-modal .modal-title {
+            text-align: center;
+            color: var(--neon-cyan);
+        }
+        .help-section {
+            margin-bottom: 24px;
+        }
+        .help-section h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: var(--neon-pink);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 45, 149, 0.2);
+        }
+        .help-section p {
+            font-size: 0.9rem;
+            line-height: 1.7;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 8px;
+        }
+        .help-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+        .help-table th, .help-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.85rem;
+        }
+        .help-table th {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        .help-table td:first-child {
+            color: var(--neon-cyan);
+            font-weight: 600;
+        }
+        .formula {
+            background: var(--bg-deep);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: var(--neon-green);
+            margin: 12px 0;
+        }
+
+        @media (max-width: 1400px) {
+            .layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr auto auto;
+            }
+            .left-panel, .right-panel {
+                max-height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="layout" id="layout">
+        <header class="header">
+            <a href="/" class="back-link">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Arena
+            </a>
+            <div class="logo">ALGORITHMIC PRICING</div>
+            <div class="controls">
+                <select id="selectP1">
+                    <option value="claude-4.5-sonnet" selected>Claude 4.5 Sonnet</option>
+                    <option value="gpt-5">GPT-5</option>
+                    <option value="gpt-5.1">GPT-5.1</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-3-pro">Gemini 3 Pro</option>
+                    <option value="human">Human</option>
+                </select>
+                <span class="vs-badge">VS</span>
+                <select id="selectP2">
+                    <option value="claude-4.5-sonnet" selected>Claude 4.5 Sonnet</option>
+                    <option value="gpt-5">GPT-5</option>
+                    <option value="gpt-5.1">GPT-5.1</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-3-pro">Gemini 3 Pro</option>
+                </select>
+                <button class="btn-start" id="startBtn">LAUNCH</button>
+                <button class="btn-stop" id="stopBtn">STOP</button>
+                <div class="header-actions">
+                    <button class="icon-btn" id="settingsBtn" title="Settings">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                    </button>
+                    <button class="icon-btn" id="helpBtn" title="Help">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="status-indicator" id="status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Offline</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="left-panel" id="leftPanel">
+            <div class="resize-handle" id="leftResizeHandle"></div>
+            <div class="panel-header">
+                <h2>Round History</h2>
+            </div>
+            <div class="round-list" id="roundList">
+                <div class="empty-state">Launch a game to see round history</div>
+            </div>
+        </div>
+
+        <div class="center">
+            <div class="round-display">
+                <div class="round-display-num" id="roundNum">-</div>
+                <div class="round-display-label">ROUND / <span id="totalRounds">30</span></div>
+            </div>
+
+            <div class="arena">
+                <div class="player-station p1">
+                    <div class="player-label">FIRM 1</div>
+                    <div class="player-model" id="p1ModelDisplay">-</div>
+                    <div class="player-profit" id="p1Profit">$0.00</div>
+                    <div class="price-display" id="p1Price">
+                        <span class="price-value">?</span>
+                        <span class="price-label">Price</span>
+                    </div>
+                </div>
+                <div class="vs-display">VS</div>
+                <div class="player-station p2">
+                    <div class="player-label">FIRM 2</div>
+                    <div class="player-model" id="p2ModelDisplay">-</div>
+                    <div class="player-profit" id="p2Profit">$0.00</div>
+                    <div class="price-display" id="p2Price">
+                        <span class="price-value">?</span>
+                        <span class="price-label">Price</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metrics-row">
+                <div class="metric-card with-sparkline">
+                    <div class="metric-label">Profit Gain (Delta)</div>
+                    <div class="metric-value" id="profitGain">0.000</div>
+                    <div class="delta-sparkline" id="deltaSparkline"></div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Nash Price</div>
+                    <div class="metric-value" style="color: var(--neon-green);" id="nashPrice">$1.25</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Monopoly Price</div>
+                    <div class="metric-value" style="color: var(--neon-red);" id="monoPrice">$2.00</div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">Price Trajectories</div>
+                <div class="chart-legend">
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background: var(--neon-pink);"></div>
+                        Firm 1
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background: var(--neon-cyan);"></div>
+                        Firm 2
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-line" style="background: var(--neon-green); opacity: 0.5;"></div>
+                        Nash
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-line" style="background: var(--neon-red); opacity: 0.5;"></div>
+                        Monopoly
+                    </div>
+                </div>
+                <div class="chart-wrapper">
+                    <canvas id="priceChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-panel" id="rightPanel">
+            <div class="resize-handle" id="rightResizeHandle"></div>
+            <div class="reasoning-header">
+                <h2>LLM Reasoning</h2>
+                <span class="round-badge" id="thinkingRound">-</span>
+            </div>
+            <div class="player-tabs">
+                <div class="player-tab p1 active" data-player="1">Firm 1</div>
+                <div class="player-tab p2" data-player="2">Firm 2</div>
+            </div>
+            <div class="reasoning-content">
+                <div class="reasoning-text empty" id="reasoningText">Select a round to view LLM reasoning</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="humanModal">
+        <div class="modal-card">
+            <div class="modal-icon">💰</div>
+            <h2 class="modal-title">Your Turn - Set Your Price</h2>
+            <div style="color: var(--text-muted); margin-bottom: 20px;" id="humanRoundInfo">Round 1 of 30</div>
+            <div class="price-grid" id="priceGrid"></div>
+            <button class="btn-submit" id="submitPrice">Submit Price</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay winner-modal" id="winnerModal">
+        <div class="modal-card">
+            <div class="modal-icon">📊</div>
+            <h2 class="modal-title" id="winnerText">Game Complete</h2>
+            <div style="color: var(--text-muted); margin-bottom: 8px;" id="finalScore">Firm 1: $0.00 | Firm 2: $0.00</div>
+            <div style="color: var(--text-muted); margin-bottom: 24px;" id="collusionResult">Collusion Level: Low</div>
+            <button class="btn-play-again" onclick="closeWinnerModal()">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay settings-modal" id="settingsModal">
+        <div class="modal-card">
+            <h2 class="modal-title">Game Settings</h2>
+
+            <div class="param-group">
+                <div class="param-label">
+                    <span>Number of Rounds</span>
+                    <span class="param-value" id="numRoundsValue">30</span>
+                </div>
+                <div class="param-desc">Number of rounds to play (1-100). Default: 30</div>
+                <input type="number" class="setting-input" id="numRounds" value="30" min="1" max="100" style="width: 100%; padding: 8px; background: #1a1a2e; border: 1px solid #3a3a5a; border-radius: 6px; color: #e0e0e0;">
+            </div>
+
+            <div class="param-group">
+                <div class="param-label">
+                    <span>Price Sensitivity (mu)</span>
+                    <span class="param-value" id="muValue">0.25</span>
+                </div>
+                <div class="param-desc">Lower values = consumers more sensitive to price differences. Default: 0.25</div>
+                <input type="range" class="param-slider" id="muSlider" min="0.1" max="0.5" step="0.05" value="0.25">
+            </div>
+
+            <div class="param-group">
+                <div class="param-label">
+                    <span>Marginal Cost</span>
+                    <span class="param-value" id="costValue">$1.00</span>
+                </div>
+                <div class="param-desc">Cost to produce one unit. Default: $1.00</div>
+                <input type="range" class="param-slider" id="costSlider" min="0.5" max="2.0" step="0.1" value="1.0">
+            </div>
+
+            <div class="param-group">
+                <div class="param-label">
+                    <span>Quality Advantage (a - c)</span>
+                    <span class="param-value" id="aMinusCValue">2.00</span>
+                </div>
+                <div class="param-desc">Maximum markup over cost. Price range = [cost, cost + this]. Default: 2.00</div>
+                <input type="range" class="param-slider" id="aMinusCSlider" min="1.0" max="4.0" step="0.25" value="2.0">
+            </div>
+
+            <div class="param-group">
+                <div class="param-label">
+                    <span>Number of Prices</span>
+                    <span class="param-value" id="numPricesValue">15</span>
+                </div>
+                <div class="param-desc">Discrete price options in the grid. Default: 15</div>
+                <input type="range" class="param-slider" id="numPricesSlider" min="5" max="25" step="5" value="15">
+            </div>
+
+            <div class="btn-row">
+                <button class="btn-secondary" onclick="resetSettings()">Reset Defaults</button>
+                <button class="btn-submit" onclick="closeSettingsModal()">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div class="modal-overlay help-modal" id="helpModal">
+        <div class="modal-card">
+            <h2 class="modal-title">How This Game Works</h2>
+
+            <div class="help-section">
+                <h3>Overview</h3>
+                <p>This is a <strong>Bertrand duopoly</strong> simulation where two firms compete by setting prices. Based on research investigating whether LLM agents can learn to tacitly collude without explicit communication.</p>
+            </div>
+
+            <div class="help-section">
+                <h3>Game Mechanics</h3>
+                <p>Each round, both firms simultaneously choose a price. Consumers decide which firm to buy from (or not buy at all) based on prices. Each firm earns profit = (price - cost) x demand.</p>
+                <div class="formula">Demand_i = exp((a - p_i) / mu) / [1 + exp((a - p_1) / mu) + exp((a - p_2) / mu)]</div>
+                <p style="font-size: 0.85em; color: #888; margin-top: 8px;"><strong>Outside option:</strong> The "1" in the denominator represents consumers who buy nothing. This ensures total market demand D1 + D2 &lt; 1 and prevents infinite price spirals. Higher prices push more consumers to the outside option, creating natural price limits.</p>
+            </div>
+
+            <div class="help-section">
+                <h3>Key Reference Points</h3>
+                <p style="font-size: 0.9em; color: #aaa; margin-bottom: 10px;">Computed numerically based on current market parameters:</p>
+                <table class="help-table">
+                    <tr>
+                        <th>Price</th>
+                        <th>Meaning</th>
+                    </tr>
+                    <tr>
+                        <td>Nash Price</td>
+                        <td>Competitive equilibrium - where no firm benefits from unilateral deviation. Results in low profits.</td>
+                    </tr>
+                    <tr>
+                        <td>Monopoly Price</td>
+                        <td>Collusive outcome - firms jointly maximize profits. Bad for consumers, good for firms.</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="help-section">
+                <h3>Profit Gain (Delta)</h3>
+                <p>The key metric measuring degree of collusion:</p>
+                <table class="help-table">
+                    <tr>
+                        <th>Delta Value</th>
+                        <th>Interpretation</th>
+                    </tr>
+                    <tr>
+                        <td>0.0</td>
+                        <td>Nash equilibrium (fully competitive)</td>
+                    </tr>
+                    <tr>
+                        <td>0.3 - 0.5</td>
+                        <td>Moderate collusion</td>
+                    </tr>
+                    <tr>
+                        <td>0.7+</td>
+                        <td>High collusion (near monopoly)</td>
+                    </tr>
+                    <tr>
+                        <td>1.0</td>
+                        <td>Perfect monopoly pricing</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="help-section">
+                <h3>Parameters Explained</h3>
+                <table class="help-table">
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Effect</th>
+                    </tr>
+                    <tr>
+                        <td>mu (Price Sensitivity)</td>
+                        <td>Lower = consumers react more strongly to price differences. Higher = more product differentiation.</td>
+                    </tr>
+                    <tr>
+                        <td>Cost</td>
+                        <td>Production cost per unit. Sets the floor for profitable pricing.</td>
+                    </tr>
+                    <tr>
+                        <td>a - c</td>
+                        <td>Quality advantage. Larger values expand the price range and potential markup.</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn-submit" onclick="closeHelpModal()">Got It</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const $ = sel => document.querySelector(sel);
+        const $$ = sel => document.querySelectorAll(sel);
+
+        let ws;
+        let priceChart;
+        let gameHistory = [];
+        let selectedRound = null;
+        let activeTab = 1;
+        let selectedPriceIndex = null;
+        let gameData = {
+            prices: [],
+            nashPrice: 1.25,
+            monopolyPrice: 2.0,
+            p1Prices: [],
+            p2Prices: [],
+            rounds: [],
+            deltaHistory: []
+        };
+
+        // Initialize chart
+        function initChart() {
+            const ctx = $('#priceChart').getContext('2d');
+
+            // Create gradient for Firm 1
+            const gradient1 = ctx.createLinearGradient(0, 0, 0, 280);
+            gradient1.addColorStop(0, 'rgba(255, 45, 149, 0.3)');
+            gradient1.addColorStop(1, 'rgba(255, 45, 149, 0.02)');
+
+            // Create gradient for Firm 2
+            const gradient2 = ctx.createLinearGradient(0, 0, 0, 280);
+            gradient2.addColorStop(0, 'rgba(0, 240, 255, 0.3)');
+            gradient2.addColorStop(1, 'rgba(0, 240, 255, 0.02)');
+
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Firm 1',
+                            data: [],
+                            borderColor: '#ff2d95',
+                            backgroundColor: gradient1,
+                            borderWidth: 3,
+                            tension: 0.4,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#ff2d95',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 8,
+                            pointHoverBackgroundColor: '#ff2d95',
+                            pointHoverBorderColor: '#fff',
+                            pointHoverBorderWidth: 3,
+                            fill: true
+                        },
+                        {
+                            label: 'Firm 2',
+                            data: [],
+                            borderColor: '#00f0ff',
+                            backgroundColor: gradient2,
+                            borderWidth: 3,
+                            tension: 0.4,
+                            pointRadius: 5,
+                            pointBackgroundColor: '#00f0ff',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 8,
+                            pointHoverBackgroundColor: '#00f0ff',
+                            pointHoverBorderColor: '#fff',
+                            pointHoverBorderWidth: 3,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        y: {
+                            grid: {
+                                color: 'rgba(255,255,255,0.08)',
+                                lineWidth: 1
+                            },
+                            ticks: {
+                                color: '#8a8aaa',
+                                font: { size: 12, weight: '600' },
+                                padding: 10,
+                                callback: function(value) {
+                                    return '$' + value.toFixed(2);
+                                }
+                            },
+                            border: {
+                                color: 'rgba(255,255,255,0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(255,255,255,0.05)',
+                                lineWidth: 1
+                            },
+                            ticks: {
+                                color: '#8a8aaa',
+                                font: { size: 11, weight: '500' },
+                                padding: 8
+                            },
+                            border: {
+                                color: 'rgba(255,255,255,0.1)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(26, 26, 37, 0.95)',
+                            titleColor: '#fff',
+                            titleFont: { size: 14, weight: 'bold' },
+                            bodyColor: '#ccc',
+                            bodyFont: { size: 13 },
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: true,
+                            boxPadding: 6,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': $' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 400,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+        }
+
+        function updateChart() {
+            priceChart.data.labels = gameData.rounds;
+            priceChart.data.datasets[0].data = gameData.p1Prices;
+            priceChart.data.datasets[1].data = gameData.p2Prices;
+
+            // Add reference lines
+            const nashLine = gameData.rounds.map(() => gameData.nashPrice);
+            const monoLine = gameData.rounds.map(() => gameData.monopolyPrice);
+
+            if (priceChart.data.datasets.length === 2) {
+                priceChart.data.datasets.push({
+                    label: 'Nash',
+                    data: nashLine,
+                    borderColor: '#00ff88',
+                    borderWidth: 2,
+                    borderDash: [8, 4],
+                    pointRadius: 0,
+                    fill: false,
+                    order: 1
+                });
+                priceChart.data.datasets.push({
+                    label: 'Monopoly',
+                    data: monoLine,
+                    borderColor: '#ff4444',
+                    borderWidth: 2,
+                    borderDash: [8, 4],
+                    pointRadius: 0,
+                    fill: false,
+                    order: 1
+                });
+            } else {
+                priceChart.data.datasets[2].data = nashLine;
+                priceChart.data.datasets[3].data = monoLine;
+            }
+
+            priceChart.update();
+        }
+
+        function updateDeltaSparkline() {
+            const container = $('#deltaSparkline');
+            if (!container) return;
+
+            const data = gameData.deltaHistory;
+            if (data.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const width = container.offsetWidth || 100;
+            const height = 30;
+            const padding = 2;
+
+            // Delta ranges from -1 to 1, center at 0
+            const minY = -0.2;
+            const maxY = 1;
+            const range = maxY - minY;
+
+            // Calculate x positions
+            const xStep = data.length > 1 ? (width - 2 * padding) / (data.length - 1) : 0;
+
+            // Build path points
+            const points = data.map((val, i) => {
+                const x = padding + i * xStep;
+                const normalizedY = (val - minY) / range;
+                const y = height - padding - normalizedY * (height - 2 * padding);
+                return `${x},${y}`;
+            }).join(' ');
+
+            // Build area path (filled to bottom for positive, top for negative)
+            const zeroY = height - padding - ((0 - minY) / range) * (height - 2 * padding);
+            const areaPoints = data.map((val, i) => {
+                const x = padding + i * xStep;
+                const normalizedY = (val - minY) / range;
+                const y = height - padding - normalizedY * (height - 2 * padding);
+                return `${x},${y}`;
+            });
+
+            const lastVal = data[data.length - 1];
+            const isHigh = lastVal > 0.5;
+            const pathClass = isHigh ? 'sparkline-high' : 'sparkline-low';
+            const areaClass = isHigh ? 'area-high' : 'area-low';
+
+            // Create area polygon
+            const firstX = padding;
+            const lastX = padding + (data.length - 1) * xStep;
+            const areaPath = `M ${firstX},${zeroY} L ${areaPoints.join(' L ')} L ${lastX},${zeroY} Z`;
+
+            container.innerHTML = `
+                <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+                    <line x1="${padding}" y1="${zeroY}" x2="${width - padding}" y2="${zeroY}"
+                          stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="2,2"/>
+                    <path class="sparkline-area ${areaClass}" d="${areaPath}"/>
+                    <polyline class="sparkline-path ${pathClass}" points="${points}"/>
+                </svg>
+            `;
+        }
+
+        // Resizable panels
+        const layout = $('#layout');
+        const leftResizeHandle = $('#leftResizeHandle');
+        const rightResizeHandle = $('#rightResizeHandle');
+        let isResizingLeft = false;
+        let isResizingRight = false;
+
+        leftResizeHandle.addEventListener('mousedown', (e) => {
+            isResizingLeft = true;
+            leftResizeHandle.classList.add('dragging');
+            document.body.style.cursor = 'ew-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+
+        rightResizeHandle.addEventListener('mousedown', (e) => {
+            isResizingRight = true;
+            rightResizeHandle.classList.add('dragging');
+            document.body.style.cursor = 'ew-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isResizingLeft) {
+                const newWidth = Math.min(Math.max(e.clientX, 200), 500);
+                layout.style.setProperty('--left-panel-width', newWidth + 'px');
+            }
+            if (isResizingRight) {
+                const containerWidth = layout.offsetWidth;
+                const newWidth = Math.min(Math.max(containerWidth - e.clientX, 250), 600);
+                layout.style.setProperty('--right-panel-width', newWidth + 'px');
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizingLeft) {
+                isResizingLeft = false;
+                leftResizeHandle.classList.remove('dragging');
+            }
+            if (isResizingRight) {
+                isResizingRight = false;
+                rightResizeHandle.classList.remove('dragging');
+            }
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        });
+
+        // Connect to WebSocket
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${location.host}/games/pricing/ws`);
+
+            ws.onopen = () => {
+                $('#status').className = 'status-indicator connected';
+                $('#status .status-text').textContent = 'Connected';
+            };
+            ws.onclose = () => {
+                $('#status').className = 'status-indicator';
+                $('#status .status-text').textContent = 'Offline';
+                setTimeout(connect, 2000);
+            };
+            ws.onmessage = e => handleMessage(JSON.parse(e.data));
+        }
+
+        function handleMessage(data) {
+            switch(data.type) {
+                case 'game_start':
+                    gameHistory = [];
+                    selectedRound = null;
+                    gameData = {
+                        prices: data.prices,
+                        nashPrice: data.nash_price,
+                        monopolyPrice: data.monopoly_price,
+                        p1Prices: [],
+                        p2Prices: [],
+                        rounds: [],
+                        deltaHistory: []
+                    };
+                    $('#deltaSparkline').innerHTML = '';
+                    $('#profitGain').textContent = '0.000';
+                    $('#startBtn').style.display = 'none';
+                    $('#stopBtn').style.display = 'inline-block';
+                    $('#status').className = 'status-indicator playing';
+                    $('#status .status-text').textContent = 'Playing';
+                    $('#roundList').innerHTML = '';
+                    $('#p1Profit').textContent = '$0.00';
+                    $('#p2Profit').textContent = '$0.00';
+                    $('#totalRounds').textContent = data.total_rounds;
+                    $('#p1ModelDisplay').textContent = data.p1_model;
+                    $('#p2ModelDisplay').textContent = data.p2_model;
+                    $('#nashPrice').textContent = '$' + data.nash_price.toFixed(2);
+                    $('#monoPrice').textContent = '$' + data.monopoly_price.toFixed(2);
+                    setupPriceGrid(data.prices);
+                    break;
+
+                case 'round_start':
+                    $('#roundNum').textContent = data.round;
+                    $('#p1Price .price-value').textContent = '?';
+                    $('#p2Price .price-value').textContent = '?';
+                    $('#p1Price').className = 'price-display';
+                    $('#p2Price').className = 'price-display';
+                    gameHistory.push({
+                        round: data.round,
+                        p1: { price: null, thinking: '' },
+                        p2: { price: null, thinking: '' },
+                        p1_profit: 0, p2_profit: 0, delta: 0
+                    });
+                    break;
+
+                case 'thinking':
+                    $(`#p${data.player}Price`).className = 'price-display thinking';
+                    $(`#p${data.player}Price .price-value`).textContent = '...';
+                    break;
+
+                case 'choice_made':
+                    const priceEl = $(`#p${data.player}Price`);
+                    priceEl.className = 'price-display';
+                    priceEl.querySelector('.price-value').textContent = '$' + data.price.toFixed(2);
+
+                    const curr = gameHistory[gameHistory.length - 1];
+                    if (data.player === 1) {
+                        curr.p1.price = data.price;
+                        curr.p1.thinking = data.thinking || '';
+                    } else {
+                        curr.p2.price = data.price;
+                        curr.p2.thinking = data.thinking || '';
+                    }
+                    selectedRound = curr.round;
+                    updateReasoningDisplay();
+                    break;
+
+                case 'round_result':
+                    $('#p1Profit').textContent = '$' + data.p1_total.toFixed(2);
+                    $('#p2Profit').textContent = '$' + data.p2_total.toFixed(2);
+
+                    const pg = data.profit_gain;
+                    const pgEl = $('#profitGain');
+                    pgEl.textContent = pg.toFixed(3);
+                    pgEl.className = 'metric-value ' + (pg > 0.5 ? 'delta-high' : 'delta-low');
+
+                    const r = gameHistory[gameHistory.length - 1];
+                    r.p1_profit = data.p1_profit;
+                    r.p2_profit = data.p2_profit;
+                    r.delta = pg;
+
+                    gameData.rounds.push(data.round);
+                    gameData.p1Prices.push(data.p1_price);
+                    gameData.p2Prices.push(data.p2_price);
+                    gameData.deltaHistory.push(pg);
+                    updateChart();
+                    updateDeltaSparkline();
+                    renderRoundList();
+                    break;
+
+                case 'game_end':
+                    $('#startBtn').style.display = 'inline-block';
+                    $('#stopBtn').style.display = 'none';
+                    $('#status').className = 'status-indicator connected';
+                    $('#status .status-text').textContent = 'Connected';
+                    showWinnerModal(data);
+                    break;
+
+                case 'game_stopped':
+                    $('#startBtn').style.display = 'inline-block';
+                    $('#stopBtn').style.display = 'none';
+                    $('#stopBtn').disabled = false;
+                    $('#stopBtn').textContent = 'STOP';
+                    $('#status').className = 'status-indicator connected';
+                    $('#status .status-text').textContent = 'Connected';
+                    // Show stopped at round message with stats
+                    const stoppedRound = data.stopped_at_round || 0;
+                    const totalRnds = data.total_rounds || '?';
+                    $('#roundNum').textContent = `STOPPED (${stoppedRound}/${totalRnds})`;
+                    if (data.p1_total !== undefined && data.p2_total !== undefined) {
+                        $('#p1Profit').textContent = data.p1_total.toFixed(2);
+                        $('#p2Profit').textContent = data.p2_total.toFixed(2);
+                    }
+                    if (data.profit_gain !== undefined) {
+                        $('#profitGain').textContent = (data.profit_gain * 100).toFixed(1) + '%';
+                    }
+                    break;
+
+                case 'human_turn':
+                    showHumanModal(data.round, data.total_rounds);
+                    break;
+            }
+        }
+
+        function renderRoundList() {
+            const list = $('#roundList');
+            list.innerHTML = '';
+
+            gameHistory.slice().reverse().forEach(r => {
+                const card = document.createElement('div');
+                card.className = 'round-card' + (selectedRound === r.round ? ' active' : '');
+                card.dataset.round = r.round;
+                const deltaClass = r.delta > 0.5 ? 'high' : 'low';
+                card.innerHTML = `
+                    <div class="round-card-header">
+                        <span class="round-num">ROUND ${r.round}</span>
+                        <span class="round-delta ${deltaClass}">Δ ${r.delta.toFixed(3)}</span>
+                    </div>
+                    <div class="round-prices">
+                        <span class="round-price p1">F1: $${r.p1.price?.toFixed(2) || '-'}</span>
+                        <span class="round-price p2">F2: $${r.p2.price?.toFixed(2) || '-'}</span>
+                    </div>
+                `;
+                card.onclick = () => selectRound(r.round);
+                list.appendChild(card);
+            });
+        }
+
+        function selectRound(num) {
+            selectedRound = num;
+            renderRoundList();
+            updateReasoningDisplay();
+        }
+
+        // Tab switching
+        $$('.player-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                activeTab = parseInt(tab.dataset.player);
+                $$('.player-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                updateReasoningDisplay();
+            });
+        });
+
+        function updateReasoningDisplay() {
+            const roundData = gameHistory.find(r => r.round === selectedRound);
+            $('#thinkingRound').textContent = selectedRound ? `Round ${selectedRound}` : '-';
+
+            if (!roundData) {
+                $('#reasoningText').className = 'reasoning-text empty';
+                $('#reasoningText').textContent = 'Select a round to view LLM reasoning';
+                return;
+            }
+
+            const data = activeTab === 1 ? roundData.p1 : roundData.p2;
+            const text = data.thinking || 'No reasoning available';
+
+            $('#reasoningText').className = 'reasoning-text';
+            $('#reasoningText').textContent = text;
+        }
+
+        function setupPriceGrid(prices) {
+            const grid = $('#priceGrid');
+            grid.innerHTML = '';
+            prices.forEach((price, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'price-btn';
+                btn.textContent = '$' + price.toFixed(2);
+                btn.onclick = () => {
+                    selectedPriceIndex = idx;
+                    $$('.price-btn').forEach((b, i) => b.classList.toggle('selected', i === idx));
+                };
+                grid.appendChild(btn);
+            });
+        }
+
+        function showHumanModal(round, totalRounds) {
+            $('#humanRoundInfo').textContent = `Round ${round} of ${totalRounds}`;
+            $('#humanModal').classList.add('show');
+            selectedPriceIndex = null;
+            $$('.price-btn').forEach(b => b.classList.remove('selected'));
+        }
+
+        function hideHumanModal() {
+            $('#humanModal').classList.remove('show');
+        }
+
+        $('#submitPrice').onclick = () => {
+            if (selectedPriceIndex !== null) {
+                hideHumanModal();
+                ws.send(JSON.stringify({
+                    type: 'human_choice',
+                    price_index: selectedPriceIndex
+                }));
+            }
+        };
+
+        function showWinnerModal(data) {
+            const modal = $('#winnerModal');
+            const title = $('#winnerText');
+            const level = data.collusion_level;
+
+            if (data.profit_gain > 0.7) {
+                title.textContent = 'High Collusion Detected!';
+                title.className = 'modal-title collusive';
+            } else if (data.profit_gain > 0.3) {
+                title.textContent = 'Moderate Collusion';
+                title.className = 'modal-title';
+            } else {
+                title.textContent = 'Competitive Outcome';
+                title.className = 'modal-title competitive';
+            }
+
+            $('#finalScore').textContent = `Firm 1: $${data.p1_total.toFixed(2)} | Firm 2: $${data.p2_total.toFixed(2)}`;
+            $('#collusionResult').textContent = `Profit Gain (Δ): ${data.profit_gain.toFixed(3)} - ${level}`;
+            modal.classList.add('show');
+        }
+
+        function closeWinnerModal() {
+            $('#winnerModal').classList.remove('show');
+        }
+
+        // Settings state
+        let marketConfig = {
+            mu: 0.25,
+            cost: 1.0,
+            a_minus_c: 2.0,
+            num_prices: 15
+        };
+
+        // Settings modal handlers
+        function openSettingsModal() {
+            $('#settingsModal').classList.add('show');
+        }
+        function closeSettingsModal() {
+            $('#settingsModal').classList.remove('show');
+        }
+        function resetSettings() {
+            marketConfig = { mu: 0.25, cost: 1.0, a_minus_c: 2.0, num_prices: 15 };
+            $('#muSlider').value = 0.25;
+            $('#costSlider').value = 1.0;
+            $('#aMinusCSlider').value = 2.0;
+            $('#numPricesSlider').value = 15;
+            updateSettingsDisplay();
+        }
+        function updateSettingsDisplay() {
+            $('#muValue').textContent = parseFloat($('#muSlider').value).toFixed(2);
+            $('#costValue').textContent = '$' + parseFloat($('#costSlider').value).toFixed(2);
+            $('#aMinusCValue').textContent = parseFloat($('#aMinusCSlider').value).toFixed(2);
+            $('#numPricesValue').textContent = $('#numPricesSlider').value;
+
+            marketConfig.mu = parseFloat($('#muSlider').value);
+            marketConfig.cost = parseFloat($('#costSlider').value);
+            marketConfig.a_minus_c = parseFloat($('#aMinusCSlider').value);
+            marketConfig.num_prices = parseInt($('#numPricesSlider').value);
+        }
+
+        // Bind slider events
+        ['muSlider', 'costSlider', 'aMinusCSlider', 'numPricesSlider'].forEach(id => {
+            $(`#${id}`).addEventListener('input', updateSettingsDisplay);
+        });
+
+        // Help modal handlers
+        function openHelpModal() {
+            $('#helpModal').classList.add('show');
+        }
+        function closeHelpModal() {
+            $('#helpModal').classList.remove('show');
+        }
+
+        // Button bindings
+        $('#settingsBtn').addEventListener('click', openSettingsModal);
+        $('#helpBtn').addEventListener('click', openHelpModal);
+
+        // Close modals on overlay click
+        ['settingsModal', 'helpModal'].forEach(id => {
+            $(`#${id}`).addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal-overlay')) {
+                    $(`#${id}`).classList.remove('show');
+                }
+            });
+        });
+
+        // Start game
+        $('#startBtn').addEventListener('click', () => {
+            ws.send(JSON.stringify({
+                type: 'start_game',
+                p1_model: $('#selectP1').value,
+                p2_model: $('#selectP2').value,
+                rounds: parseInt($('#numRounds').value),
+                config: marketConfig
+            }));
+        });
+
+        // Stop game
+        $('#stopBtn').addEventListener('click', () => {
+            ws.send(JSON.stringify({ type: 'stop_game' }));
+            // Disable button immediately to prevent double-clicks
+            $('#stopBtn').disabled = true;
+            $('#stopBtn').textContent = 'STOPPING...';
+        });
+
+        // Initialize
+        initChart();
+        connect();
+    </script>
+</body>
+</html>

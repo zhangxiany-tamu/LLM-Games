@@ -15,8 +15,10 @@ API_KEYS = {
 MODELS = {
     "claude-4.5-sonnet": ("anthropic", "claude-sonnet-4-5-20250929"),
     "gpt-5": ("openai", "gpt-5"),
+    "gpt-5.1": ("openai", "gpt-5.1"),
     "gemini-2.5-pro": ("gemini", "gemini-2.5-pro"),
     "gemini-2.5-flash": ("gemini", "gemini-2.5-flash"),
+    "gemini-3-pro": ("gemini", "gemini-3-pro-preview"),
 }
 
 def get_model_info(model_id: str) -> tuple:

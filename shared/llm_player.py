@@ -58,20 +58,30 @@ def get_llm_response(
 
     elif provider == "openai":
         client = openai.OpenAI(api_key=api_key)
-        # GPT-5 uses Responses API with reasoning
+        # Use responses API for GPT-5 models to get reasoning
         response = client.responses.create(
             model=model,
             input=prompt,
-            reasoning={"effort": "medium"}
+            reasoning={"effort": "medium"},
         )
-        raw = ""
+
+        # Extract reasoning and text from response
         thinking = ""
-        for output in response.output:
-            if output.type == "message":
-                for content in output.content:
-                    if content.type == "output_text":
-                        raw = content.text
-        thinking = raw if raw else "(No response)"
+        raw = ""
+        for item in response.output:
+            if item.type == "reasoning":
+                # Reasoning summary is in item.summary (list of objects with text)
+                if hasattr(item, 'summary') and item.summary:
+                    thinking = "\n".join(s.text for s in item.summary if hasattr(s, 'text') and s.text)
+            elif item.type == "message":
+                # Message content is in item.content (list of objects with text attribute)
+                if hasattr(item, 'content') and item.content:
+                    raw = "\n".join(c.text for c in item.content if hasattr(c, 'text') and c.text)
+
+        if not thinking:
+            thinking = "(Reasoning not available - GPT-5 models do not expose raw reasoning)"
+        if not raw:
+            raw = "(No response)"
 
     elif provider == "gemini":
         url = f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}'

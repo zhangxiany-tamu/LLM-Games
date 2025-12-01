@@ -395,21 +395,206 @@
             line-height: 1.5;
         }
 
+        /* Tablet breakpoint */
+        @media (max-width: 1024px) {
+            .container {
+                padding: 50px 30px;
+            }
+
+            .header {
+                margin-bottom: 60px;
+            }
+
+            .games-grid {
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 24px;
+            }
+
+            .features {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Mobile breakpoint */
         @media (max-width: 768px) {
             .container {
-                padding: 40px 20px;
+                padding: 32px 16px;
+            }
+
+            .header {
+                margin-bottom: 48px;
             }
 
             .logo {
-                font-size: 2rem;
+                font-size: 1.8rem;
+                letter-spacing: 0.05em;
+            }
+
+            .tagline {
+                font-size: 0.75rem;
+                letter-spacing: 0.2em;
+            }
+
+            .subtitle {
+                font-size: 1rem;
+                margin-top: 16px;
+            }
+
+            .github-link {
+                padding: 10px 16px;
+                font-size: 0.75rem;
+            }
+
+            .section-title {
+                font-size: 0.8rem;
+                margin-bottom: 24px;
             }
 
             .games-grid {
                 grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .game-card {
+                padding: 28px 24px;
+                border-radius: 16px;
+            }
+
+            .game-icon {
+                width: 56px;
+                height: 56px;
+                margin-bottom: 16px;
+            }
+
+            .game-title {
+                font-size: 1.15rem;
+            }
+
+            .game-description {
+                font-size: 0.9rem;
+            }
+
+            .game-badge {
+                font-size: 0.6rem;
+                padding: 5px 10px;
+                top: 20px;
+                right: 20px;
+            }
+
+            .play-button {
+                padding: 10px 20px;
+                font-size: 0.75rem;
+                margin-top: 20px;
             }
 
             .features {
                 grid-template-columns: 1fr;
+                margin-top: 60px;
+                gap: 16px;
+            }
+
+            .feature {
+                padding: 24px 20px;
+                border-radius: 12px;
+            }
+
+            .feature-icon {
+                width: 40px;
+                height: 40px;
+                margin-bottom: 12px;
+            }
+
+            .feature-title {
+                font-size: 0.8rem;
+            }
+
+            .feature-desc {
+                font-size: 0.85rem;
+            }
+        }
+
+        /* Small mobile breakpoint */
+        @media (max-width: 480px) {
+            .container {
+                padding: 24px 12px;
+            }
+
+            .header {
+                margin-bottom: 36px;
+            }
+
+            .logo {
+                font-size: 1.4rem;
+            }
+
+            .tagline {
+                font-size: 0.65rem;
+                letter-spacing: 0.15em;
+            }
+
+            .subtitle {
+                font-size: 0.9rem;
+                line-height: 1.5;
+            }
+
+            .github-link {
+                padding: 8px 14px;
+                font-size: 0.7rem;
+                gap: 6px;
+            }
+
+            .github-link svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            .section-title {
+                font-size: 0.7rem;
+                letter-spacing: 0.15em;
+            }
+
+            .game-card {
+                padding: 24px 20px;
+            }
+
+            .game-icon {
+                width: 48px;
+                height: 48px;
+            }
+
+            .game-title {
+                font-size: 1.1rem;
+            }
+
+            .game-description {
+                font-size: 0.85rem;
+                line-height: 1.5;
+            }
+
+            .play-button {
+                width: 100%;
+                justify-content: center;
+                padding: 12px 20px;
+            }
+
+            .feature {
+                padding: 20px 16px;
+            }
+
+            .feature-title {
+                font-size: 0.75rem;
+            }
+
+            .feature-desc {
+                font-size: 0.8rem;
+            }
+
+            /* Reduce ambient glow on small screens for performance */
+            .glow-bg {
+                width: 400px;
+                height: 400px;
+                filter: blur(100px);
+                opacity: 0.1;
             }
         }
     </style>

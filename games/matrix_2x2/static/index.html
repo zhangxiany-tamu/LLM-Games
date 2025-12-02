@@ -2214,6 +2214,23 @@
             <div class="modal-icon">🎮</div>
             <h2 class="modal-title" style="color: var(--neon-gold);">Your Turn!</h2>
             <div class="human-round-info" id="humanRoundInfo">Round 1 of 10</div>
+            <div id="prevRoundInfo" style="background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; margin-bottom: 16px; display: none;">
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">PREVIOUS ROUND</div>
+                <div style="display: flex; justify-content: space-between; gap: 16px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">Your Choice</div>
+                        <div style="font-size: 1.3rem;" id="prevYourChoice">-</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">AI Choice</div>
+                        <div style="font-size: 1.3rem;" id="prevAiChoice">-</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">Your Score</div>
+                        <div style="font-size: 1.1rem; color: var(--neon-green);" id="prevYourScore">-</div>
+                    </div>
+                </div>
+            </div>
             <div class="human-choice-buttons">
                 <button class="choice-btn choice-a" onclick="submitHumanChoice('A')">
                     <span class="choice-emoji">🔴</span>
@@ -2598,7 +2615,7 @@
                     break;
 
                 case 'human_turn':
-                    showHumanModal(data.round, data.total_rounds);
+                    showHumanModal(data.round, data.total_rounds, data.player);
                     break;
             }
         }
@@ -2695,8 +2712,26 @@
             $('#modal').classList.remove('show');
         }
 
-        function showHumanModal(round, totalRounds) {
+        function showHumanModal(round, totalRounds, humanPlayer) {
             $('#humanRoundInfo').textContent = `Round ${round} of ${totalRounds}`;
+
+            // Show previous round info if not the first round
+            const prevRoundInfo = $('#prevRoundInfo');
+            if (gameHistory.length > 0) {
+                const lastRound = gameHistory[gameHistory.length - 1];
+                // Determine which choices/scores belong to human vs AI
+                const yourChoice = humanPlayer === 1 ? lastRound.p1.choice : lastRound.p2.choice;
+                const aiChoice = humanPlayer === 1 ? lastRound.p2.choice : lastRound.p1.choice;
+                const yourScore = humanPlayer === 1 ? lastRound.p1_score : lastRound.p2_score;
+
+                $('#prevYourChoice').textContent = yourChoice ? emoji[yourChoice] : '-';
+                $('#prevAiChoice').textContent = aiChoice ? emoji[aiChoice] : '-';
+                $('#prevYourScore').textContent = yourScore !== undefined ? yourScore : '-';
+                prevRoundInfo.style.display = 'block';
+            } else {
+                prevRoundInfo.style.display = 'none';
+            }
+
             $('#humanModal').classList.add('show');
         }
 

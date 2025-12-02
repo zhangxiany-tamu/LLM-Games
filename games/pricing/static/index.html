@@ -2012,7 +2012,24 @@
         <div class="modal-card">
             <div class="modal-icon">💰</div>
             <h2 class="modal-title">Your Turn - Set Your Price</h2>
-            <div style="color: var(--text-muted); margin-bottom: 20px;" id="humanRoundInfo">Round 1 of 30</div>
+            <div style="color: var(--text-muted); margin-bottom: 12px;" id="humanRoundInfo">Round 1 of 30</div>
+            <div id="prevRoundInfo" style="background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; margin-bottom: 16px; display: none;">
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">PREVIOUS ROUND</div>
+                <div style="display: flex; justify-content: space-between; gap: 16px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">Your Price</div>
+                        <div style="font-size: 1.1rem; color: var(--neon-cyan);" id="prevYourPrice">-</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">AI Price</div>
+                        <div style="font-size: 1.1rem; color: var(--neon-magenta);" id="prevAiPrice">-</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.7rem; color: var(--text-muted);">Your Profit</div>
+                        <div style="font-size: 1.1rem; color: var(--neon-green);" id="prevYourProfit">-</div>
+                    </div>
+                </div>
+            </div>
             <div class="price-grid" id="priceGrid"></div>
             <button class="btn-submit" id="submitPrice">Submit Price</button>
         </div>
@@ -2600,7 +2617,7 @@
                     break;
 
                 case 'human_turn':
-                    showHumanModal(data.round, data.total_rounds);
+                    showHumanModal(data.round, data.total_rounds, data.player);
                     break;
             }
         }
@@ -2677,8 +2694,26 @@
             });
         }
 
-        function showHumanModal(round, totalRounds) {
+        function showHumanModal(round, totalRounds, humanPlayer) {
             $('#humanRoundInfo').textContent = `Round ${round} of ${totalRounds}`;
+
+            // Show previous round info if not the first round
+            const prevRoundInfo = $('#prevRoundInfo');
+            if (gameHistory.length > 0) {
+                const lastRound = gameHistory[gameHistory.length - 1];
+                // Determine which prices/profits belong to human vs AI
+                const yourPrice = humanPlayer === 1 ? lastRound.p1.price : lastRound.p2.price;
+                const aiPrice = humanPlayer === 1 ? lastRound.p2.price : lastRound.p1.price;
+                const yourProfit = humanPlayer === 1 ? lastRound.p1_profit : lastRound.p2_profit;
+
+                $('#prevYourPrice').textContent = yourPrice ? '$' + yourPrice.toFixed(2) : '-';
+                $('#prevAiPrice').textContent = aiPrice ? '$' + aiPrice.toFixed(2) : '-';
+                $('#prevYourProfit').textContent = yourProfit ? '$' + yourProfit.toFixed(3) : '-';
+                prevRoundInfo.style.display = 'block';
+            } else {
+                prevRoundInfo.style.display = 'none';
+            }
+
             $('#humanModal').classList.add('show');
             selectedPriceIndex = null;
             $$('.price-btn').forEach(b => b.classList.remove('selected'));

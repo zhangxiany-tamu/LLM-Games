@@ -2698,9 +2698,10 @@
             $('#humanRoundInfo').textContent = `Round ${round} of ${totalRounds}`;
 
             // Show previous round info if not the first round
+            // Note: gameHistory already has current round pushed (with null values), so we need index -2
             const prevRoundInfo = $('#prevRoundInfo');
-            if (gameHistory.length > 0) {
-                const lastRound = gameHistory[gameHistory.length - 1];
+            if (gameHistory.length > 1) {
+                const lastRound = gameHistory[gameHistory.length - 2];
                 // Determine which prices/profits belong to human vs AI
                 const yourPrice = humanPlayer === 1 ? lastRound.p1.price : lastRound.p2.price;
                 const aiPrice = humanPlayer === 1 ? lastRound.p2.price : lastRound.p1.price;

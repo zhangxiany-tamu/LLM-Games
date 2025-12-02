@@ -2716,9 +2716,10 @@
             $('#humanRoundInfo').textContent = `Round ${round} of ${totalRounds}`;
 
             // Show previous round info if not the first round
+            // Note: gameHistory already has current round pushed (with null values), so we need index -2
             const prevRoundInfo = $('#prevRoundInfo');
-            if (gameHistory.length > 0) {
-                const lastRound = gameHistory[gameHistory.length - 1];
+            if (gameHistory.length > 1) {
+                const lastRound = gameHistory[gameHistory.length - 2];
                 // Determine which choices/scores belong to human vs AI
                 const yourChoice = humanPlayer === 1 ? lastRound.p1.choice : lastRound.p2.choice;
                 const aiChoice = humanPlayer === 1 ? lastRound.p2.choice : lastRound.p1.choice;
